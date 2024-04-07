@@ -1,0 +1,474 @@
+//==============================================================================
+//
+// Super Cyber Soldier Female LVL 2.
+//
+//==============================================================================
+
+// -----------------------------------------------------------------------------
+// AI nodes.
+// -----------------------------------------------------------------------------
+
+// Chasing AI.
+class SuperCyberSoldierFemale2_AINode_Chase : TBehavior
+{
+	double ChaseDistance;
+	int RunFastSpeed;
+	int RunSpeed;
+	int WalkSpeed;
+	static SuperCyberSoldierFemale2_AINode_Chase Create(double ChaseDistance = 0)
+	{
+		SuperCyberSoldierFemale2_AINode_Chase Result = New('SuperCyberSoldierFemale2_AINode_Chase');
+		Result.ChaseDistance = ChaseDistance;
+		Result.RunFastSpeed = 24;
+		Result.RunSpeed = 18;
+		Result.WalkSpeed = 12;
+		return Result;
+	}
+	TStatus ArmedChase(TCustomCyberActor CustomCyberActor)
+	{
+		if (CustomCyberActor.Target)
+		{
+			bool InAttackState = CustomCyberActor.IsInAttackState();
+			Actor Target = CustomCyberActor.Target;
+			bool MoveTowardsTarget;
+			if (
+					(CustomCyberActor.IsIndestructible(Target))
+					|| (CustomCyberActor.HasGodMode(Target))
+					|| (CustomCyberActor.HasBuddha(Target))
+					|| (CustomCyberActor.IsFrightening(Target))
+				)
+			{
+				// A no win scenario: simply run away.
+				CustomCyberActor.ChaseMode = Run;
+				CustomCyberActor.ChaseAttempts = 32;
+				CustomCyberActor.ChaseDetourFactor = 0.5;
+				CustomCyberActor.ChaseFlags = 0;
+				CustomCyberActor.Speed = RunSpeed;
+				if (!InAttackState)
+					CustomCyberActor.B_SetStateLabel("Rifle.Run");
+				MoveTowardsTarget = false;
+			}
+			else
+				if (
+						(CustomCyberActor.TargetExperiencedThreatLevel == ETL_CRITICAL)
+						|| (CustomCyberActor.TargetThreatLevel > CustomCyberActor.ThreatLevelThreshold)
+						|| (CustomCyberActor.bFrightened)
+					)
+				{
+					// Try to run away from this target.
+					CustomCyberActor.ChaseMode = Run;
+					CustomCyberActor.ChaseAttempts = 32;
+					CustomCyberActor.ChaseDetourFactor = 1;
+					CustomCyberActor.ChaseFlags = 0;
+					CustomCyberActor.Speed = RunSpeed;
+					if (!InAttackState)
+						CustomCyberActor.B_SetStateLabel("Rifle.Run");
+					MoveTowardsTarget = false;
+				}
+				else
+				{
+					CustomCyberActor.ChaseMode = Run;
+					CustomCyberActor.ChaseAttempts = 32;
+					CustomCyberActor.ChaseDetourFactor = 1;
+					CustomCyberActor.ChaseFlags = CustomCyberActor.KMT_ZIGZAG;
+					CustomCyberActor.Speed = RunSpeed;
+					if (!InAttackState)
+						CustomCyberActor.B_SetStateLabel("Rifle.Run");
+					MoveTowardsTarget = true;
+				}
+			if (MoveTowardsTarget)
+				if (CustomCyberActor.Distance2D(Target) > ChaseDistance)
+					CustomCyberActor.B_Chase(Target.Pos);
+				else
+					CustomCyberActor.MoveAway(Target.Pos);
+			else
+				CustomCyberActor.MoveAway(Target.Pos);
+			return BH_SUCCESS;
+		}
+		else
+			return BH_FAILURE;
+	}
+	TStatus UnarmedChase(TCustomCyberActor CustomCyberActor)
+	{
+		if (CustomCyberActor.Target)
+		{
+			bool InAttackState = CustomCyberActor.IsInAttackState();
+			Actor Target = CustomCyberActor.Target;
+			bool MoveTowardsTarget;
+			if (
+					(CustomCyberActor.IsIndestructible(Target))
+					|| (CustomCyberActor.HasGodMode(Target))
+					|| (CustomCyberActor.HasBuddha(Target))
+					|| (CustomCyberActor.IsFrightening(Target))
+				)
+			{
+				// A no win scenario: simply run away.
+				CustomCyberActor.ChaseMode = RunFast;
+				CustomCyberActor.ChaseAttempts = 32;
+				CustomCyberActor.ChaseDetourFactor = 0.5;
+				CustomCyberActor.ChaseFlags = 0;
+				CustomCyberActor.Speed = RunSpeed;
+				if (!InAttackState)
+					CustomCyberActor.B_SetStateLabel("RunFast");
+				MoveTowardsTarget = false;
+			}
+			else
+				if (
+						(CustomCyberActor.TargetExperiencedThreatLevel == ETL_CRITICAL)
+						|| (CustomCyberActor.TargetThreatLevel > CustomCyberActor.ThreatLevelThreshold)
+						|| (CustomCyberActor.bFrightened)
+					)
+				{
+					// Try to run away from this target.
+					CustomCyberActor.ChaseMode = RunFast;
+					CustomCyberActor.ChaseAttempts = 32;
+					CustomCyberActor.ChaseDetourFactor = 1;
+					CustomCyberActor.ChaseFlags = 0;
+					CustomCyberActor.Speed = RunSpeed;
+					if (!InAttackState)
+						CustomCyberActor.B_SetStateLabel("RunFast");
+					MoveTowardsTarget = false;
+				}
+				else
+					if (
+							(CustomCyberActor.TargetExperiencedThreatLevel == ETL_DANGER)
+							|| (CustomCyberActor.TargetThreatLevel == CustomCyberActor.ThreatLevelThreshold)
+						)
+					{
+						CustomCyberActor.ChaseMode = Run;
+						CustomCyberActor.ChaseAttempts = 32;
+						CustomCyberActor.ChaseDetourFactor = 1;
+						CustomCyberActor.ChaseFlags = CustomCyberActor.KMT_ZIGZAG;
+						CustomCyberActor.Speed = RunSpeed;
+						if (!InAttackState)
+							CustomCyberActor.B_SetStateLabel("Run");
+						MoveTowardsTarget = true;
+					}
+					else
+					{
+						CustomCyberActor.ChaseMode = Walk;
+						CustomCyberActor.ChaseAttempts = 32;
+						CustomCyberActor.ChaseDetourFactor = 1;
+						CustomCyberActor.ChaseFlags = CustomCyberActor.KMT_ZIGZAG;
+						CustomCyberActor.Speed = WalkSpeed;
+						if (!InAttackState)
+							CustomCyberActor.B_SetStateLabel("Walk");
+						MoveTowardsTarget = true;
+					}
+			if (!InAttackState)
+				if (MoveTowardsTarget)
+					if (CustomCyberActor.Distance2D(Target) > ChaseDistance)
+						CustomCyberActor.B_Chase(Target.Pos);
+					else
+						CustomCyberActor.MoveAway(Target.Pos);
+				else
+					CustomCyberActor.MoveAway(Target.Pos);
+			return BH_SUCCESS;
+		}
+		else
+			return BH_FAILURE;
+	}
+	override TStatus Update(TCustomCyberActor CustomCyberActor)
+	{
+		if (CustomCyberActor.IsInAttackState())
+			return BH_RUNNING;
+		if (CustomCyberActor.CountInv('DoomWeapon') > 0)
+			return ArmedChase(CustomCyberActor);
+		else
+			return UnarmedChase(CustomCyberActor);
+	}
+}
+
+// Melee AI.
+class SuperCyberSoldierFemale2_AINode_Melee : TBehavior
+{
+	int LowHealth;
+	static SuperCyberSoldierFemale2_AINode_Melee Create(int LowHealth = 0)
+	{
+		SuperCyberSoldierFemale2_AINode_Melee Result = New('SuperCyberSoldierFemale2_AINode_Melee');
+		Result.LowHealth = LowHealth;
+		return Result;
+	}
+	override TStatus Update(TCustomCyberActor CustomCyberActor)
+	{
+		double MeleeFuzzy;
+		if (CustomCyberActor.IsInAttackState())
+		{
+			CustomCyberActor.A_FaceTarget();
+			return BH_RUNNING;
+		}
+		if (CustomCyberActor.CountInv('DoomWeapon') > 0)
+			return BH_FAILURE;
+		if (CustomCyberActor.Health < LowHealth)
+			return BH_FAILURE;
+		if (CustomCyberActor.Target)
+		{
+			if (
+					(CustomCyberActor.IsIndestructible(CustomCyberActor.Target))
+					|| (CustomCyberActor.HasGodMode(CustomCyberActor.Target))
+					|| (CustomCyberActor.HasBuddha(CustomCyberActor.Target))
+				)
+			{
+				// A no win scenario: don't attack, avoid getting engaged in a fight.
+				return BH_FAILURE;
+			}
+			else
+				switch (CustomCyberActor.TargetExperiencedThreatLevel)
+				{
+					case ETL_CRITICAL:
+						return BH_FAILURE;
+						break;
+					case ETL_DANGER:
+						return BH_FAILURE;
+						break;
+					default:
+						switch (CustomCyberActor.TargetThreatLevel)
+						{
+							case THREAT_SUPERDANGER:
+								MeleeFuzzy = 8;
+								break;
+							case THREAT_VERYDANGEROUS:
+								MeleeFuzzy = 16;
+								break;
+							case THREAT_DANGEROUS:
+								MeleeFuzzy = 32;
+								break;
+							case THREAT_ABOVENORMAL:
+								MeleeFuzzy = 64;
+								break;
+							case THREAT_MILD:
+								MeleeFuzzy = 128;
+								break;
+							default:
+								MeleeFuzzy = 256;
+								break;
+						}
+						break;
+				}
+			if ((MeleeFuzzy * CustomCyberActor.Health / CustomCyberActor.default.Health) < Random())
+				return BH_FAILURE;
+			if (CustomCyberActor.KAI_CheckMeleeRange(CustomCyberActor.Target))
+			{
+				CustomCyberActor.SetStateLabel("Melee");
+				return BH_SUCCESS;
+			}
+			else
+				return BH_FAILURE;
+		}
+		else
+			return BH_FAILURE;
+	}
+}
+
+// Fighting AI.
+class SuperCyberSoldierFemale2_AINode_Fight : TBehavior
+{
+	int LowHealth;
+	static SuperCyberSoldierFemale2_AINode_Fight Create(int LowHealth = 0)
+	{
+		SuperCyberSoldierFemale2_AINode_Fight Result = New('SuperCyberSoldierFemale2_AINode_Fight');
+		Result.LowHealth = LowHealth;
+		return Result;
+	}
+	TStatus ArmedFight(TCustomCyberActor CustomCyberActor)
+	{
+		if (CustomCyberActor.Target)
+		{
+			if (CustomCyberActor.KAI_CheckMissileRange(CustomCyberActor.Target, true))
+				CustomCyberActor.SetStateLabel("Rifle.Fire");
+			return BH_SUCCESS;
+		}
+		else
+			return BH_FAILURE;
+	}
+	TStatus UnarmedFight(TCustomCyberActor CustomCyberActor)
+	{
+		if (CustomCyberActor.Target)
+		{
+			bool FitForFight = true;
+			if (
+					(CustomCyberActor.IsIndestructible(CustomCyberActor.Target))
+					|| (CustomCyberActor.HasGodMode(CustomCyberActor.Target))
+					|| (CustomCyberActor.HasBuddha(CustomCyberActor.Target))
+				)
+			{
+				// A no win scenario: don't attack, avoid getting engaged in a fight.
+				FitForFight = false;
+			}
+			else
+				switch (CustomCyberActor.TargetExperiencedThreatLevel)
+				{
+					case ETL_CRITICAL:
+						if (CustomCyberActor.Health > LowHealth)
+							FitForFight = true;
+						else
+							FitForFight = false;
+						break;
+					case ETL_DANGER:
+						if (CustomCyberActor.Health > LowHealth)
+							FitForFight = true;
+						else
+							FitForFight = false;
+						break;
+				}
+			if ((FitForFight) && (CustomCyberActor.KAI_CheckMissileRange(CustomCyberActor.Target, true)))
+			{
+				CustomCyberActor.SetStateLabel("Missile");
+				return BH_SUCCESS;
+			}
+			else
+				return BH_FAILURE;
+		}
+		else
+			return BH_FAILURE;
+	}
+	override TStatus Update(TCustomCyberActor CustomCyberActor)
+	{
+		if (CustomCyberActor.IsInAttackState())
+		{
+			CustomCyberActor.A_FaceTarget();
+			return BH_RUNNING;
+		}
+		if (CustomCyberActor.CountInv('DoomWeapon') > 0)
+			return ArmedFight(CustomCyberActor);
+		else
+			return UnarmedFight(CustomCyberActor);
+	}
+}
+
+// Cloacking device.
+class SuperCyberSoldierFemale2_AINode_CloackingDevice : TBehavior
+{
+	int LowHealth;
+	static SuperCyberSoldierFemale2_AINode_CloackingDevice Create(int LowHealth = 0)
+	{
+		SuperCyberSoldierFemale2_AINode_CloackingDevice Result = New('SuperCyberSoldierFemale2_AINode_CloackingDevice');
+		Result.LowHealth = LowHealth;
+		return Result;
+	}
+	override TStatus Update(TCustomCyberActor CustomCyberActor)
+	{
+		if (CustomCyberActor.Target)
+		{
+			if (
+					(CustomCyberActor.IsIndestructible(CustomCyberActor.Target))
+					|| (CustomCyberActor.HasGodMode(CustomCyberActor.Target))
+					|| (CustomCyberActor.HasBuddha(CustomCyberActor.Target))
+					|| (CustomCyberActor.TargetExperiencedThreatLevel == ETL_CRITICAL)
+				)
+				CustomCyberActor.B_EnableCloackingDevice();
+		}
+		return BH_SUCCESS;
+	}
+}
+
+// Root node of the behavior tree.
+class SuperCyberSoldierFemale2_AINode_Root : TSequence
+{
+	static SuperCyberSoldierFemale2_AINode_Root Create()
+	{
+		SuperCyberSoldierFemale2_AINode_Root Result = New('SuperCyberSoldierFemale2_AINode_Root');
+		return Result;
+	}
+	override TStatus Update(TCustomCyberActor CustomCyberActor)
+	{
+		if (CustomCyberActor.CloackingTime)
+			CustomCyberActor.CloackingTime--;
+		else
+			CustomCyberActor.B_DisableCloackingDevice();
+		if (CustomCyberActor.Health <= 0)
+		{
+			if (CustomCyberActor.ResuscitationTimer)
+				CustomCyberActor.ResuscitationTimer--;
+			return BH_FAILURE;
+		}
+		if (CustomCyberActor.CountInv('DoomWeapon') > 0)
+			CustomCyberActor.IdleState = "Rifle.Idle";
+		else
+			CustomCyberActor.IdleState = "Idle";
+		if (CustomCyberActor.IsInAttackState())
+			CustomCyberActor.bNOPAIN = true;
+		else
+			CustomCyberActor.bNOPAIN = false;
+		return super.Update(CustomCyberActor);
+	}
+}
+
+// -----------------------------------------------------------------------------
+// SuperCyberSoldierFemale2.
+// -----------------------------------------------------------------------------
+
+class SuperCyberSoldierFemale2 : TCyberAdvanced abstract
+{
+	bool TargetAcquired;
+	bool TargetCrushed;
+	override void InitBehavior()
+	{
+		TBehaviorTreeManager BehaviorTreeManager = TBehaviorTreeManager.GetInstance();
+		Behavior = BehaviorTreeManager.GetBehavior(self.GetClass());
+		if (!Behavior)
+		{
+			Behavior = SuperCyberSoldierFemale2_AINode_Root.Create();
+			SuperCyberSoldierFemale2_AINode_Root Result = SuperCyberSoldierFemale2_AINode_Root(Behavior);
+			Result.AddBehavior(TCyberBasic_AINode_SeekHelp.Create(HealthScore: 100));
+			Result.AddBehavior(TCyberBasic_AINode_SeekIncoming.Create());
+			Result.AddBehavior(TCyberBasic_AINode_SeekGoal.Create());
+			Result.AddBehavior(SuperCyberSoldierFemale2_AINode_Chase.Create(ChaseDistance: 384));
+			TSelector AttackSequence = New('TSelector');
+			AttackSequence.AddBehavior(SuperCyberSoldierFemale2_AINode_Melee.Create());
+			TSequence FarAttackSequence = New('TSequence');
+			FarAttackSequence.AddBehavior(TCyberBasic_AINode_SafeHitscan.Create());
+			FarAttackSequence.AddBehavior(SuperCyberSoldierFemale2_AINode_Fight.Create());
+			AttackSequence.AddBehavior(FarAttackSequence);
+			AttackSequence.AddBehavior(SuperCyberSoldierFemale2_AINode_CloackingDevice.Create());
+			Result.AddBehavior(AttackSequence);
+			BehaviorTreeManager.AddBehavior(self.GetClass(), Result);
+		}
+	}
+	override void Initialize()
+	{
+		super.Initialize();
+		TargetAcquired = false;
+		TargetCrushed = false;
+		A_GiveInventory('EnergyShield2', 1);
+	}
+	override void PostBeginPlay()
+	{
+		super.PostBeginPlay();
+		MeleeState = FindState("Melee", true);
+		MissileState = FindState("Missile", true);
+		AttackStates.Push(MeleeState);
+		AttackStates.Push(MissileState);
+		AttackStates.Push(FindState("FireBall.Boost", true));
+		AttackStates.Push(FindState("Hand.Boost", true));
+		AttackStates.Push(FindState("Hand2.Boost", true));
+		AttackStates.Push(FindState("KickFront", true));
+		AttackStates.Push(FindState("KickLateral", true));
+		AttackStates.Push(FindState("Punch", true));
+		AttackStates.Push(FindState("QuadPunch", true));
+		AttackStates.Push(FindState("Stomp", true));
+		AttackStates.Push(FindState("Rifle.Fire", true));
+	}
+// ...
+	default
+	{
+		CameraHeight 120;
+		Health 1750;
+		Height 80;
+		Mass 10000;
+		MeleeRange 80;
+		PainChance 80;
+		Radius 28;
+		Speed 12;
+		Tag "Super Cyber Soldier Female LVL 2";
+		KAI_Actor.AggressionMultiplier 0.5;
+		KAI_Actor.ThreatLevel THREAT_DANGEROUS;
+		KAI_Actor.ThreatLevelThreshold THREAT_DANGEROUS;
+		ActiveSound "SuperSoldierFemale/Active";
+		DeathSound "SuperSoldierFemale/Death";
+		PainSound "SuperSoldierFemale/Pain";
+		SeeSound "SuperSoldierFemale/Sight";
+		+MissileEvenMore;
+		+MissileMore;
+	}
+}

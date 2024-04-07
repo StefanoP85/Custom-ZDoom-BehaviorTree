@@ -1,0 +1,20 @@
+// =============================================================================
+//
+// DOOM GAME NEW CLASSES AND BEHAVIORS
+//
+// =============================================================================
+
+Version "4.11.0"
+
+#include "ZSCRIPT/MonsterResurrect.txt"
+#include "ZSCRIPT/NFG.txt"
+#include "ZSCRIPT/Cyber/Common.txt"
+#include "ZSCRIPT/Cyber/NavMesh.txt"
+#include "ZSCRIPT/Cyber/Shield.txt"
+#include "ZSCRIPT/Cyber/CyberBase.txt"
+#include "ZSCRIPT/Cyber/CyberDoom.txt"
+#include "ZSCRIPT/Cyber/SuperCyberSoldierMale1.txt"
+#include "ZSCRIPT/Cyber/SuperCyberSoldierMale2.txt"
+#include "ZSCRIPT/Cyber/SuperCyberSoldierFemale1.txt"
+#include "ZSCRIPT/Cyber/SuperCyberSoldierFemale2.txt"
+#include "ZSCRIPT/Cyber/SuperCyberSoldierFemale3.txt"

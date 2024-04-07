@@ -1,0 +1,78 @@
+//==============================================================================
+//
+// Monster Resurrect artifact
+//
+//==============================================================================
+
+//------------------------------------------------------------------------------
+// Projectile
+//------------------------------------------------------------------------------
+
+class MonsterResurrect : Actor
+{
+	void CheckResurrect()
+	{
+		BlockThingsIterator Iterator = BlockThingsIterator.Create(self, Radius * 2);
+		Actor Thing;
+		while ( Iterator.Next() )
+		{
+			Thing = Iterator.thing;
+			if ( Thing && Distance2D(Thing) >= Radius * 2 && Thing.CanRaise() )
+				if ( RaiseActor(Thing) )
+					Thing.A_SetFriendly(true);
+		}
+	}
+	default
+	{
+		Damage 0;
+		Height 16;
+		Radius 16;
+		Speed 5;
+		Projectile;
+		-ACTIVATEIMPACT;
+		-ACTIVATEPCROSS;
+		+BLOODLESSIMPACT;
+		+RIPPER;
+	}
+	states
+	{
+		Spawn:
+			MRES BCDEBCDE 5 CheckResurrect();
+			// goto Death; intentionally stops after 1.1 seconds
+		Death:
+			stop;
+	}
+}
+
+//------------------------------------------------------------------------------
+// Artifact
+//------------------------------------------------------------------------------
+
+class ArtiMonsterResurrect : CustomInventory
+{
+	default
+	{
+		Height 32;
+		Radius 32;
+		Scale 0.5;
+		Inventory.Amount 1;
+		Inventory.DefMaxAmount;
+		Inventory.Icon "ARTIMRES";
+		Inventory.PickupMessage "You got the Monster Resurrect artifact!";
+		Inventory.PickupSound "misc/p_pkup";
+		Inventory.UseSound "Artifact/MResurrect";
+		+INVENTORY.INVBAR;
+		+FLOAT;
+		+FLOATBOB;
+		+NOGRAVITY;
+	}
+	states
+	{
+		Spawn:
+			MRES A 6;
+			loop;
+		Use:
+			TNT1 A 1 A_FireProjectile("MonsterResurrect", 0, false, 0, 0, FPF_NOAUTOAIM);
+			stop;
+	}
+}

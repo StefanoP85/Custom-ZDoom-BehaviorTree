@@ -1,0 +1,38 @@
+// =============================================================================
+//
+// Sounds.
+//
+// =============================================================================
+
+// -----------------------------------------------------------------------------
+// Artifacts.
+// -----------------------------------------------------------------------------
+
+Artifact/MResurrect                     "SOUNDS/MONSTRES.ogg"
+
+// -----------------------------------------------------------------------------
+// Armors.
+// -----------------------------------------------------------------------------
+
+Shield/CloackingDevice                  "SOUNDS/Shield/CloackingDevice.ogg"
+Shield/Explode                          "SOUNDS/Shield/Explode.ogg"
+Shield/Low                              "SOUNDS/Shield/Low.ogg"
+Shield/Regenerate                       "SOUNDS/Shield/Regenerate.ogg"
+Shield/TakeDamage                       "SOUNDS/Shield/TakeDamage.ogg"
+Shield/Warning                          "SOUNDS/Shield/Warning.ogg"
+Shield2/Low                             "DSEMPTY"
+Shield2/Warning                         "SOUNDS/Shield/LowNew.ogg"
+$volume Shield/Low      0.50
+$volume Shield/Warning  0.50
+$volume Shield2/Low     0.50
+$volume Shield2/Warning 0.50
+
+// -----------------------------------------------------------------------------
+// Armors.
+// -----------------------------------------------------------------------------
+
+weapons/nfg                             "SOUNDS/DSNFGPLA.ogg"
+weapons/cr                              "SOUNDS/PLASMA02.ogg"
+weapons/crcharging                      "SOUNDS/WCRC.ogg"
+weapons/scr                             "SOUNDS/PLASMA03.ogg"
+weapons/scrcharging                     "SOUNDS/WSCRC.ogg"

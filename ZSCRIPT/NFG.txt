@@ -1,0 +1,90 @@
+//==============================================================================
+//
+// NFG
+//
+//==============================================================================
+
+//------------------------------------------------------------------------------
+// Projectile
+//------------------------------------------------------------------------------
+
+class NFGPlasmaBall : PlasmaBall
+{
+	default
+	{
+		Damage 12;
+		Obituary "%o was vaporized by %k's NFG.";
+		Radius 8;
+		SeeSound "weapons/nfg";
+		Speed 40;
+	}
+	states
+	{
+		Spawn:
+			NFGS AB 6 Bright;
+			loop;
+		Death:
+			NFGE ABCDE 4 Bright;
+			stop;
+	}
+}
+
+//------------------------------------------------------------------------------
+// Weapon
+//------------------------------------------------------------------------------
+
+class NFG : DoomWeapon
+{
+	//$Category Weapons
+	//$Title NFG
+	action void A_FireNFGPlasma()
+	{
+		if ( player == null )
+			return;
+		Weapon weap = player.ReadyWeapon;
+		if ( weap != null && invoker == weap && stateinfo != null && stateinfo.mStateType == STATE_Psprite )
+		{
+			if ( !weap.DepleteAmmo(weap.bAltFire, true, 1) )
+				return;
+			State flash = weap.FindState('Flash');
+			if ( flash != null )
+				player.SetSafeFlash(weap, flash, Random[FirePlasma](0, 1));
+		}
+		SpawnPlayerMissile("NFGPlasmaBall");
+	}
+	default
+	{
+		Inventory.Icon "ICONNFG";
+		Inventory.PickupMessage "You got the NFG!";
+		Weapon.AmmoGive 40;
+		Weapon.AmmoType "Cell";
+		Weapon.AmmoUse 1;
+		Weapon.SelectionOrder 111;
+		Weapon.SlotNumber 6;
+		Weapon.SlotPriority -1;
+	}
+	states
+	{
+		Spawn:
+			NFGL A -1;
+			stop;
+		Ready:
+			NFGG A 1 A_WeaponReady();
+			loop;
+		Deselect:
+			NFGG A 1 A_Lower();
+			loop;
+		Select:
+			NFGG A 1 A_Raise();
+			loop;
+		Fire:
+			NFGG B 3 A_FireNFGPlasma();
+			NFGG B 40 A_ReFire();
+			goto Ready;
+		Flash:
+			NFGF A 4 bright A_Light1();
+			goto LightDone;
+			NFGF B 4 bright A_Light1();
+			goto LightDone;
+	}
+}
