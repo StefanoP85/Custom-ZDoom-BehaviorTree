@@ -987,15 +987,15 @@ class TCyberBasic : TCustomCyberActor
 			PriorityQueue.Items[MonsterIndex].TotalDamage += NewDamage;
 			TThreatLevel ThreatLevel = AssessThreatLevel(Source);
 			TExperiencedThreatLevel ExperiencedThreatLevel = ETL_NORMAL;
-			if (Damage > 499)
-			{
-				CyberEventHandler.AddCriticalClass(Source.GetClass());
-				ExperiencedThreatLevel = ETL_CRITICAL;
-			}
 			if (Damage > 149)
 			{
 				CyberEventHandler.AddDangerousClass(Source.GetClass());
 				ExperiencedThreatLevel = ETL_DANGER;
+			}
+			if (Damage > 499)
+			{
+				CyberEventHandler.AddCriticalClass(Source.GetClass());
+				ExperiencedThreatLevel = ETL_CRITICAL;
 			}
 			PriorityQueue.UpdatePriority(Source, ThreatLevel, ExperiencedThreatLevel);
 		}
@@ -1022,15 +1022,15 @@ class TCyberAdvanced : TCustomCyberActor
 			PriorityQueue.Items[MonsterIndex].TotalDamage += NewDamage;
 			TThreatLevel ThreatLevel = AssessThreatLevel(Source);
 			TExperiencedThreatLevel ExperiencedThreatLevel = ETL_NORMAL;
-			if (Damage > 800)
-			{
-				CyberEventHandler.AddCriticalClass(Source.GetClass());
-				ExperiencedThreatLevel = ETL_CRITICAL;
-			}
-			if (Damage > 300)
+			if (Damage > 149)
 			{
 				CyberEventHandler.AddDangerousClass(Source.GetClass());
 				ExperiencedThreatLevel = ETL_DANGER;
+			}
+			if (Damage > 499)
+			{
+				CyberEventHandler.AddCriticalClass(Source.GetClass());
+				ExperiencedThreatLevel = ETL_CRITICAL;
 			}
 			PriorityQueue.UpdatePriority(Source, ThreatLevel, ExperiencedThreatLevel);
 		}
