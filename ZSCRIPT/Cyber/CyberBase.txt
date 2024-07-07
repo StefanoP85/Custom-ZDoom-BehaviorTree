@@ -648,10 +648,10 @@ class TCustomCyberActor : TCustomNavMeshActor
 	override Class<Actor> GetBloodType(int Type)
 	{
 		Class<Actor> Result;
-		CustomShield Shield = CustomShield(FindInventory('CustomShield', true));
-		if ((Shield) && (Shield.FShields > 0))
-			Result = Shield.FShieldBloodType;
-		else
+		//CustomShield Shield = CustomShield(FindInventory('CustomShield', true));
+		//if ((Shield) && (Shield.FShields > 0))
+		//	Result = Shield.FShieldBloodType;
+		//else
 			Result = super.GetBloodType(Type);
 		return Result;
 	}

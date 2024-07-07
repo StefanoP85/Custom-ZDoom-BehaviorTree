@@ -37,7 +37,7 @@ class CyberDoom : TCyberBasic abstract
 	override void Initialize()
 	{
 		super.Initialize();
-		A_GiveInventory('EnergyShield1', 1);
+		//A_GiveInventory('EnergyShield1', 1);
 	}
 	override void PostBeginPlay()
 	{
