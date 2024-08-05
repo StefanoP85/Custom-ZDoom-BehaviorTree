@@ -1,0 +1,2091 @@
+//==============================================================================
+//
+// Cyber monster base class.
+//
+//==============================================================================
+
+// -----------------------------------------------------------------------------
+// Event handler.
+// -----------------------------------------------------------------------------
+
+class TCyberEventHandler : EventHandler
+{
+	// Array of known classes and their damage.
+	Array< Class<Actor> > Classes;
+	Array< Int > MagnitudeDamage;
+	// Array of monster in the level.
+	Array<Actor> MonsterList;
+	// List of navmesh agents in the level.
+	TNavMeshActors NavMeshActors;
+	// Statically allocated variables, instead of per-actor allocated ones.
+	Vector3 StepPos[8];
+	double EstimateDamagePos;
+	double EstimateDamage[8];
+	int GetMagnitudeDamage(Class<Actor> ClassName)
+	{
+		int ClassIndex = Classes.Find(ClassName);
+		if (ClassIndex == Classes.Size())
+			return -1;
+		else
+			return MagnitudeDamage[ClassIndex];
+	}
+	void SetMagnitudeDamage(Class<Actor> ClassName, int Damage)
+	{
+		int ClassIndex = Classes.Find(ClassName);
+		if (ClassIndex == Classes.Size())
+		{
+			Classes.Push(ClassName);
+			MagnitudeDamage.Push(Damage);
+		}
+		else
+			if (MagnitudeDamage[ClassIndex] < Damage)
+				MagnitudeDamage[ClassIndex] = Damage;
+	}
+	override void OnRegister()
+	{
+		NavMeshActors = TNavMeshActors.GetInstance();
+		// Add all Doom monster classes.
+		SetMagnitudeDamage('Arachnotron', 0);
+		SetMagnitudeDamage('Archvile', 0);
+		SetMagnitudeDamage('BaronOfHell', 80);
+		SetMagnitudeDamage('HellKnight', 80);
+		SetMagnitudeDamage('Cacodemon', 60);
+		SetMagnitudeDamage('ChaingunGuy', 0);
+		SetMagnitudeDamage('Cyberdemon', 0);
+		SetMagnitudeDamage('Demon', 40);
+		SetMagnitudeDamage('DoomImp', 24);
+		SetMagnitudeDamage('Fatso', 0);
+		SetMagnitudeDamage('LostSoul', 24);
+		SetMagnitudeDamage('PainElemental', 0);
+		SetMagnitudeDamage('Revenant', 60);
+		SetMagnitudeDamage('ShotgunGuy', 0);
+		SetMagnitudeDamage('Spectre', 40);
+		SetMagnitudeDamage('SpiderMastermind', 0);
+		SetMagnitudeDamage('Zombieman', 0);
+		SetMagnitudeDamage('ArachnotronPlasma', 40);
+		SetMagnitudeDamage('ArchvileFire', 90);
+		SetMagnitudeDamage('BaronBall', 64);
+		SetMagnitudeDamage('BFGBall', 800);
+		SetMagnitudeDamage('CacodemonBall', 40);
+		SetMagnitudeDamage('DoomImpBall', 24);
+		SetMagnitudeDamage('FatShot', 64);
+		SetMagnitudeDamage('PlasmaBall', 40);
+		SetMagnitudeDamage('RevenantTracer', 80);
+		SetMagnitudeDamage('Rocket', 288);
+	}
+	override void WorldThingSpawned(WorldEvent E)
+	{
+		if ( E.Thing && E.Thing.bIsMonster )
+		{
+			MonsterList.Push(E.Thing);
+			let CustomNavMeshActor = TCustomNavMeshActor(E.Thing);
+			if (CustomNavMeshActor)
+				NavMeshActors.GetInstance().AddMonster(CustomNavMeshActor);
+		}
+	}
+	override void WorldThingDestroyed(WorldEvent E)
+	{
+		if ( E.Thing )
+		{
+			int Index = MonsterList.Find(E.Thing);
+			if (Index != MonsterList.Size())
+				MonsterList.Delete(Index);
+		}
+	}
+}
+
+// -----------------------------------------------------------------------------
+// Priority queue.
+// -----------------------------------------------------------------------------
+
+enum TThreatLevel
+{
+	THREAT_ASSESS = 0,
+	THREAT_NONE = 1,
+	THREAT_VERYLOW = 2,
+	THREAT_LOW = 3,
+	THREAT_MILD = 4,
+	THREAT_NORMAL = 5,
+	THREAT_ABOVENORMAL = 6,
+	THREAT_DANGEROUS = 7,
+	THREAT_VERYDANGEROUS = 8,
+	THREAT_SUPERDANGER = 9,
+	THREAT_UNSTOPPABLE = 666,
+}
+
+enum TExperiencedThreatLevel
+{
+	ETL_INITIAL = 0,
+	ETL_NORMAL = 1,
+	ETL_DANGER = 2,
+	ETL_CRITICAL = 3
+}
+
+class TPriorityQueueItem : Thinker
+{
+	Actor Monster;
+	TThreatLevel ThreatLevel;
+	TExperiencedThreatLevel ExperiencedThreatLevel;
+int TotalDamage;
+	int Timer;
+	static TPriorityQueueItem Create(Actor Monster, TThreatLevel ThreatLevel, TExperiencedThreatLevel ExperiencedThreatLevel)
+	{
+		TPriorityQueueItem PriorityQueueItem = New('TPriorityQueueItem');
+		PriorityQueueItem.ChangeStatNum(STAT_INFO);
+		PriorityQueueItem.Monster = Monster;
+		PriorityQueueItem.ThreatLevel = ThreatLevel;
+		PriorityQueueItem.ExperiencedThreatLevel = ExperiencedThreatLevel;
+PriorityQueueItem.TotalDamage = 0;
+		PriorityQueueItem.Timer = 4200; // 4200 TICS, 120 seconds.
+		return PriorityQueueItem;
+	}
+}
+
+class TPriorityQueue : Thinker
+{
+	Array<TPriorityQueueItem> Items;
+	int ItemsCount;
+	static TPriorityQueue Create()
+	{
+		TPriorityQueue PriorityQueue = New('TPriorityQueue');
+		PriorityQueue.ChangeStatNum(STAT_INFO);
+		return PriorityQueue;
+	}
+	int Compare(int A, int B)
+	{
+		if (Items[A].ExperiencedThreatLevel > Items[B].ExperiencedThreatLevel)
+			return 1;
+		else
+			if (Items[A].ExperiencedThreatLevel < Items[B].ExperiencedThreatLevel)
+				return -1;
+			else
+				if (Items[A].ThreatLevel > Items[B].ThreatLevel)
+					return 1;
+				else
+					if (Items[A].ThreatLevel < Items[B].ThreatLevel)
+						return -1;
+					else
+						return 0;
+	}
+	int GetParent(int Index)
+	{
+		return (Index - 1) / 2;
+	}
+	int GetLeftChild(int Index)
+	{
+		return ((Index * 2) + 1);
+	}
+	int GetRightChild(int Index)
+	{
+		return ((Index * 2) + 2);
+	}
+	void Swap(int A, int B)
+	{
+		TPriorityQueueItem Tmp = Items[A];
+		Items[A] = Items[B];
+		Items[B] = Tmp;
+	}
+	void BubbleUp(int Index)
+	{
+		if (Index < Items.Size())
+		{
+			int IndexParent = GetParent(Index);
+			while ((Index > 0) && (Compare(IndexParent, Index) < 0))
+			{
+				Swap(IndexParent, Index);
+				Index = IndexParent;
+				IndexParent = GetParent(Index);
+			}
+		}
+	}
+	void BubbleDown(int Index)
+	{
+		int Pivot, Left, Right;
+		do
+		{
+			Pivot = -1;
+			Right = GetRightChild(Index);
+			if ((Right < ItemsCount) && (Compare(Right, Index) < 0))
+			{
+				Left = GetLeftChild(Index);
+				if (Compare(Left, Right) < 0)
+					Pivot = Left;
+				else
+					Pivot = Right;
+			}
+			else
+			{
+				Left = GetLeftChild(Index);
+				if ((Left < ItemsCount) && (Compare(Left, Index) < 0))
+					Pivot = Left;
+			}
+			if (Pivot >= 0)
+				Swap(Index, Pivot);
+			Index = Pivot;
+		} while (Index >= 0);
+	}
+	int Find(Actor Monster)
+	{
+		int Index = 0;
+		bool NotFound = True;
+		while ((NotFound) && (Index < ItemsCount))
+			if (Items[Index].Monster == Monster)
+				NotFound = False;
+			else
+				Index++;
+		if (NotFound)
+			return -1;
+		else
+			return Index;
+	}
+	void Insert(Actor Monster, TThreatLevel ThreatLevel, TExperiencedThreatLevel ExperiencedThreatLevel)
+	{
+		TPriorityQueueItem PriorityQueueItem = TPriorityQueueItem.Create(Monster, ThreatLevel, ExperiencedThreatLevel);
+		Items.Push(PriorityQueueItem);
+		BubbleUp(ItemsCount);
+		ItemsCount++;
+	}
+	void Remove(int Index)
+	{
+		Items.Delete(Index);
+		ItemsCount--;
+		BubbleDown(Index);
+	}
+	void UpdatePriority(Actor Monster, TThreatLevel ThreatLevel, TExperiencedThreatLevel ExperiencedThreatLevel)
+    {
+        int Index = Find(Monster);
+		if (Index >= 0)
+		{
+			Items[Index].ThreatLevel = ThreatLevel;
+			Items[Index].ExperiencedThreatLevel = ExperiencedThreatLevel;
+			BubbleUp(Index);
+		}
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Behavior tree.
+// -----------------------------------------------------------------------------
+
+// Return values of and valid states for behaviors.
+enum TStatus
+{
+	BH_INVALID,
+	BH_SUCCESS,
+	BH_FAILURE,
+	BH_RUNNING,
+	BH_ABORTED,
+}
+enum TParallelPolicy
+{
+	BP_RequireOne,
+	BP_RequireAll
+}
+
+class TBehavior : Thinker abstract
+{
+	TStatus Status;
+	virtual TStatus Update(TCustomCyberActor CustomCyberActor)
+	{
+		return BH_INVALID;
+	}
+	virtual void OnInitialize()
+	{
+	}
+	virtual void OnTerminate(TStatus Status)
+	{
+	}
+	virtual void Initialize()
+	{
+		Status = BH_INVALID;
+	}
+	TStatus Think(TCustomCyberActor CustomCyberActor)
+	{
+		if (Status != BH_RUNNING)
+			OnInitialize();
+		Status = Update(CustomCyberActor);
+		if (Status != BH_RUNNING)
+			OnTerminate(Status);
+		return Status;
+	}
+	void Abort()
+	{
+		OnTerminate(BH_ABORTED);
+		Status = BH_ABORTED;
+	}
+	void Reset()
+	{
+		Status = BH_INVALID;
+	}
+	bool IsRunning()
+	{
+		return Status == BH_RUNNING;
+	}
+	bool IsTerminated()
+	{
+		return (Status == BH_SUCCESS) || (Status == BH_FAILURE);
+	}
+}
+
+class TDecorator : TBehavior abstract
+{
+	TBehavior Behavior;
+	override TStatus Update(TCustomCyberActor CustomCyberActor)
+	{
+		return Behavior.Think(CustomCyberActor);
+	}
+}
+
+class TRepeat : TDecorator
+{
+	int Limit;
+	static TRepeat Create(TBehavior Behavior)
+	{
+		TRepeat Result = New('TRepeat');
+		Result.Initialize();
+		Result.Behavior = Behavior;
+		return Result;
+	}
+	override void Initialize()
+	{
+		super.Initialize();
+		Limit = 0;
+	}
+	override TStatus Update(TCustomCyberActor CustomCyberActor)
+	{
+		int Counter = 0;
+		while (true)
+		{
+			Behavior.Think(CustomCyberActor);
+			if (Behavior.Status == BH_RUNNING)
+				break;
+			if (Behavior.Status == BH_FAILURE)
+				return BH_FAILURE;
+			if (++Counter == Limit)
+				return BH_SUCCESS;
+			Behavior.Reset();
+		}
+		return BH_INVALID;
+	}
+}
+
+class TRetryUntilSuccessful : TDecorator
+{
+	int Limit;
+	static TRetryUntilSuccessful Create(TBehavior Behavior)
+	{
+		TRetryUntilSuccessful Result = New('TRetryUntilSuccessful');
+		Result.Initialize();
+		Result.Behavior = Behavior;
+		return Result;
+	}
+	override void Initialize()
+	{
+		super.Initialize();
+		Limit = 0;
+	}
+	override TStatus Update(TCustomCyberActor CustomCyberActor)
+	{
+		int Counter = 0;
+		while (true)
+		{
+			Behavior.Think(CustomCyberActor);
+			if (Behavior.Status == BH_RUNNING)
+				break;
+			if (Behavior.Status == BH_SUCCESS)
+				return BH_SUCCESS;
+			if (Behavior.Status == BH_FAILURE)
+				return BH_FAILURE;
+			if (++Counter == Limit)
+				break;
+			Behavior.Reset();
+		}
+		return BH_FAILURE;
+	}
+}
+
+class TComposite : TBehavior abstract
+{
+	Array<TBehavior> Behaviors;
+	int CurrentIndex;
+	override void Initialize()
+	{
+		super.Initialize();
+		for (int I = 0; I < Behaviors.Size(); I++)
+			Behaviors[I].Initialize();
+		CurrentIndex = 0;
+	}
+	virtual TComposite AddBehavior(TBehavior Behavior)
+	{
+		Behaviors.Push(Behavior);
+		return self;
+	}
+	virtual TComposite RemoveBehavior(TBehavior Behavior)
+	{
+		int Index = Behaviors.Find(Behavior);
+		if (Index != Behaviors.Size())
+			Behaviors.Delete(Index);
+		return self;
+	}
+}
+
+class TSequence : TComposite
+{
+	static TSequence Create()
+	{
+		TSequence Result = New('TSequence');
+		Result.Initialize();
+		return Result;
+	}
+	override TStatus Update(TCustomCyberActor CustomCyberActor)
+	{
+		CurrentIndex = 0;
+		// Keep going until a child behavior says it's running.
+		while (CurrentIndex < Behaviors.Size())
+		{
+			TStatus S = Behaviors[CurrentIndex].Think(CustomCyberActor);
+			// If the child fails, or keeps running, do the same.
+			if (S != BH_SUCCESS)
+				return S;
+			CurrentIndex++;
+		}
+		// Hit the end of the array, job done!
+		return BH_SUCCESS;
+	}
+}
+
+class TSelector : TComposite
+{
+	static TSelector Create()
+	{
+		TSelector Result = New('TSelector');
+		Result.Initialize();
+		return Result;
+	}
+	override TStatus Update(TCustomCyberActor CustomCyberActor)
+	{
+		CurrentIndex = 0;
+		// Keep going until a child behavior says it's running.
+		while (CurrentIndex < Behaviors.Size())
+		{
+			TStatus S = Behaviors[CurrentIndex].Think(CustomCyberActor);
+			// If the child succeeds, or keeps running, do the same.
+			if (S != BH_FAILURE)
+				return S;
+			CurrentIndex++;
+		}
+		// Hit the end of the array, it didn't end well.
+		return BH_FAILURE;
+	}
+}
+
+class TUtilityBehavior : TBehavior
+{
+	virtual double CalculateUtility(TCustomCyberActor CustomCyberActor)
+	{
+		return 0;
+	}
+}
+
+class TUtilitySelector : TComposite
+{
+	Array<double> Utility;
+	Array<int> SortIndex;
+	static TUtilitySelector Create()
+	{
+		TUtilitySelector Result = New('TUtilitySelector');
+		Result.Initialize();
+		return Result;
+	}
+	override TComposite AddBehavior(TBehavior Behavior)
+	{
+		Utility.Push(0);
+		SortIndex.Push(0);
+		return super.AddBehavior(Behavior);
+	}
+	override TComposite RemoveBehavior(TBehavior Behavior)
+	{
+		int Index = Behaviors.Find(Behavior);
+		if (Index != Behaviors.Size())
+		{
+			Behaviors.Delete(Index);
+			Utility.Delete(Index);
+			SortIndex.Delete(Index);
+		}
+		return self;
+	}
+	override TStatus Update(TCustomCyberActor CustomCyberActor)
+	{
+		// Query for child utility values.
+		int BehaviorsCount = Behaviors.Size();
+		for (int I = 0; I < BehaviorsCount; I++)
+		{
+			TUtilityBehavior UtilityBehavior = TUtilityBehavior(Behaviors[I]);
+			Utility[I] = UtilityBehavior.CalculateUtility(CustomCyberActor);
+		}
+		// Sort from highest utility to lowest.
+		for (int I = 0; I < BehaviorsCount; I++)
+			SortIndex[I] = I;
+		for (int I = 0; I < (BehaviorsCount - 1); I++)
+			for (int J = I + 1; J < BehaviorsCount; J++)
+				if (Utility[SortIndex[I]] < Utility[SortIndex[J]])
+				{
+					int Temp = SortIndex[I];
+					SortIndex[I] = SortIndex[J];
+					SortIndex[J] = Temp;
+				}
+		CurrentIndex = 0;
+		int BehaviorIndex;
+		// Keep going until a child behavior says it's running.
+		while (CurrentIndex < BehaviorsCount)
+		{
+			BehaviorIndex = SortIndex[CurrentIndex];
+			TStatus S = Behaviors[BehaviorIndex].Think(CustomCyberActor);
+			// If the child succeeds, or keeps running, do the same.
+			if (S != BH_FAILURE)
+				return S;
+			CurrentIndex++;
+		}
+		// Hit the end of the array, it didn't end well.
+		return BH_FAILURE;
+	}
+}
+
+class TBehaviorTree: Thinker
+{
+	Class<TCustomCyberActor> ClassName;
+	TBehavior Behavior;
+	static TBehaviorTree Create(Class<TCustomCyberActor> ClassName, TBehavior Behavior)
+	{
+		TBehaviorTree Result = New('TBehaviorTree');
+		Result.ChangeStatNum(STAT_INFO);
+		Result.ClassName = ClassName;
+		Result.Behavior = Behavior;
+		return Result;
+	}
+}
+
+class TBehaviorTreeManager: Thinker
+{
+	Array<TBehaviorTree> BehaviorTrees;
+	static TBehaviorTreeManager Create()
+	{
+		TBehaviorTreeManager BehaviorTreeManager = New('TBehaviorTreeManager');
+		BehaviorTreeManager.ChangeStatNum(STAT_INFO);
+		return BehaviorTreeManager;
+	}
+	static TBehaviorTreeManager GetInstance()
+	{
+		ThinkerIterator Iterator = ThinkerIterator.Create('TBehaviorTreeManager', STAT_INFO);
+		let Result = TBehaviorTreeManager(Iterator.Next());
+		if (!Result)
+			Result = TBehaviorTreeManager.Create();
+		return Result;
+	}
+	int SearchBehavior(Class<TCustomCyberActor> ClassName)
+	{
+		for (int I = 0; I < BehaviorTrees.Size(); I++)
+			if (BehaviorTrees[I].ClassName == ClassName)
+				return I;
+		// Not found.
+		return -1;
+	}
+	void AddBehavior(Class<TCustomCyberActor> ClassName, TBehavior Behavior)
+	{
+		int Index = SearchBehavior(ClassName);
+		if (Index < 0)
+		{
+			TBehaviorTree BehaviorTree = TBehaviorTree.Create(ClassName, Behavior);
+			BehaviorTrees.Push(BehaviorTree);
+		}
+		else
+			BehaviorTrees[Index].Behavior = Behavior;
+	}
+	TBehavior GetBehavior(Class<TCustomCyberActor> ClassName)
+	{
+		int Index = SearchBehavior(ClassName);
+		if (Index >= 0)
+			return BehaviorTrees[Index].Behavior;
+		else
+			return null;
+	}
+}
+
+// -----------------------------------------------------------------------------
+// Custom cyber actor base class.
+// -----------------------------------------------------------------------------
+
+// Custom cyber actor.
+class TCustomCyberActor : TCustomNavMeshActor abstract
+{
+	// Link to the cyber event handler.
+	TCyberEventHandler CyberEventHandler;
+	// Link to other navigating agents.
+	TNavMeshActors NavMeshActors;
+	// Priority queue of monsters.
+	TPriorityQueue PriorityQueue;
+	// Behavior tree.
+	TBehavior Behavior;
+	// Current state label.
+	StateLabel CurStateLabel;
+	// Help giver and receiver actors.
+	TCustomNavMeshActor HelpGiver;
+	Actor HelpReceiver;
+	// Packed word of space arounds the actor.
+	short PackedDirSpace;
+	// Next step, set by tactical AI nodes.
+	Vector3 NextStep;
+	// Destination point, set by strategy AI nodes.
+	Vector3 Destination;
+	// Flag signaling a jump in progress.
+	bool Jumping;
+	// Preferred directions and timer of the next reversal of directions in tics.
+	short PreferredDirection;
+	short ReverseDirectionTimer;
+	// Weapon management.
+	Class<DoomWeapon> CurrentWeapon;
+	short WeaponCooldown;
+	// Cloacking device management.
+	short CloackingDeviceTimer;
+	// Gesture management.
+	bool TargetAcquired;
+	// Jump sound.
+	Sound FJumpSound;
+	property JumpSound: FJumpSound;
+	// Manage the knowledge of damage by classes using CyberEventHandler.
+	override int DamageMobj(Actor Inflictor, Actor Source, int Damage, Name Mod, int Flags, double Angle)
+	{
+		if (Inflictor)
+			CyberEventHandler.SetMagnitudeDamage(Inflictor.GetClass(), Damage);
+		return super.DamageMobj(Inflictor, Source, Damage, Mod, Flags, Angle);
+	}
+	// If an energy shield is active, use its custom blood type.
+	/*override Class<Actor> GetBloodType(int Type)
+	{
+		Class<Actor> Result;
+		CustomShield Shield = CustomShield(FindInventory('CustomShield', true));
+		if ((Shield) && (Shield.FShields > 0))
+			Result = Shield.GetBloodType(Type);
+		else
+			Result = super.GetBloodType(Type);
+		return Result;
+	}*/
+	// Initializes the behavior tree.
+	virtual void InitBehavior()
+	{
+		Behavior = null;
+	}
+	// Initialization event for derived classes, AFTER the behavior tree is assigned.
+	virtual void Initialize()
+	{
+		CurStateLabel = 'Idle';
+		HelpGiver = null;
+		HelpReceiver = null;
+		Jumping = false;
+		PreferredDirection = 1;
+		ReverseDirectionTimer = 0;
+		CurrentWeapon = null;
+		WeaponCooldown = 0;
+		CloackingDeviceTimer = 0;
+		TargetAcquired = false;
+	}
+	// Finalization routine, removes the actor from the NavMesh agents.
+	override void OnDestroy()
+	{
+		if (NavMeshActors)
+			NavMeshActors.RemoveMonster(self);
+		super.OnDestroy();
+	}
+	// Initialization routine, inserts the actor into the NavMesh agents and other initializations.
+	override void PostBeginPlay()
+	{
+		super.PostBeginPlay();
+		NavMeshActors = TNavMeshActors.GetInstance();
+		if (NavMeshActors)
+			NavMeshActors.AddMonster(self);
+		PriorityQueue = TPriorityQueue.Create();
+		CyberEventHandler = TCyberEventHandler(EventHandler.Find("TCyberEventHandler"));
+		InitBehavior();
+		Initialize();
+	}
+	// Execute the behavior tree.
+	override void Tick()
+	{
+		super.Tick();
+		if (Behavior)
+			Behavior.Think(self);
+	}
+	// Update the Actor's State Machine.
+	void UpdateStateLabel(StateLabel AStateLabel, bool Temporary = false)
+	{
+		if (CurStateLabel == AStateLabel)
+			return;
+		if (
+				(CurStateLabel == 'Idle')
+				&& ((AStateLabel == 'Walk') || (AStateLabel == 'Run') || (AStateLabel == 'RunFast'))
+				&& (SeeSound)
+				&& (Health > 0)
+				&& (Target)
+			)
+			A_StartSound(SeeSound, CHAN_VOICE, CHANF_DEFAULT, 1.0, bBoss ? ATTN_NONE : ATTN_NORM);
+		SetStateLabel(AStateLabel);
+		if (!Temporary)
+			CurStateLabel = AStateLabel;
+	}
+	// Tests for a collision between two AABBs.
+	bool CheckCollision(
+		Vector3 ActorPos, int ActorRadius, int ActorHeight,
+		Vector3 ProjectilePos, int ProjectileRadius, int ProjectileHeight
+	)
+	{
+		// Adjusted AABB of Actor.
+		double ActorMinX = ActorPos.X - ActorRadius - ProjectileRadius;
+		double ActorMinY = ActorPos.Y - ActorRadius - ProjectileRadius;
+		double ActorMinZ = ActorPos.Z - ActorHeight / 2 - ProjectileHeight / 2;
+		double ActorMaxX = ActorPos.X + ActorRadius + ProjectileRadius;
+		double ActorMaxY = ActorPos.Y + ActorRadius + ProjectileRadius;
+		double ActorMaxZ = ActorPos.Z + ActorHeight / 2 + ProjectileHeight / 2;
+		if (
+			(ProjectilePos.X >= ActorMinX)
+			&& (ProjectilePos.X <= ActorMaxX)
+			&& (ProjectilePos.Y >= ActorMinY)
+			&& (ProjectilePos.Y <= ActorMaxY)
+			&& (ProjectilePos.Z >= ActorMinZ)
+			&& (ProjectilePos.Z <= ActorMaxZ)
+		)
+			return true;
+		return false;
+	}
+	// Calculates the time to collision between two AABBs in tics.
+	// Zero means already collided, negative values means no collision trajectory.
+	double TimeToCollision(
+		Vector3 ActorPos, int ActorRadius, int ActorHeight, Vector3 ActorVel,
+		Vector3 ProjectilePos, int ProjectileRadius, int ProjectileHeight, Vector3 ProjectileVel
+	)
+	{
+		// Adjusted AABB of Actor.
+		double ActorMinX = ActorPos.X - ActorRadius - ProjectileRadius;
+		double ActorMinY = ActorPos.Y - ActorRadius - ProjectileRadius;
+		double ActorMinZ = ActorPos.Z - ActorHeight / 2 - ProjectileHeight / 2;
+		double ActorMaxX = ActorPos.X + ActorRadius + ProjectileRadius;
+		double ActorMaxY = ActorPos.Y + ActorRadius + ProjectileRadius;
+		double ActorMaxZ = ActorPos.Z + ActorHeight / 2 + ProjectileHeight / 2;
+		// Adjusted velocity of projectile, Actor is supposed stationary.
+		double AdjVelX = ProjectileVel.X - ActorVel.X;
+		double AdjVelY = ProjectileVel.Y - ActorVel.Y;
+		double AdjVelZ = ProjectileVel.Z - ActorVel.Z;
+		// Test variables.
+		double Plane; // Plane of the Actor's AABB.
+		double Diff; // Axis-aligned distance of projectile to Actor's AABB.
+		double Time; // Distance divided by velocity.
+		Vector3 CollisionPoint; // Intersection of direction with the plane.
+		double CollisionX;
+		double CollisionY;
+		double CollisionZ;
+		double Result = -1;
+		// Simply collision.
+		if (
+			(ProjectilePos.X >= ActorMinX)
+			&& (ProjectilePos.X <= ActorMaxX)
+			&& (ProjectilePos.Y >= ActorMinY)
+			&& (ProjectilePos.Y <= ActorMaxY)
+			&& (ProjectilePos.Z >= ActorMinZ)
+			&& (ProjectilePos.Z <= ActorMaxZ)
+		)
+			return 0;
+		// Collision on X axis (YZ plane).
+		if (ProjectilePos.X >= ActorMaxX)
+			Plane = ActorMaxX;
+		else
+			Plane = ActorMinX;
+		Diff = Plane - ProjectilePos.X;
+		if (ProjectileVel.X != 0)
+		{
+			Time = Diff / ProjectileVel.X;
+			CollisionPoint.X = ProjectilePos.X + ProjectileVel.X * Time;
+			CollisionPoint.Y = ProjectilePos.Y + ProjectileVel.Y * Time;
+			CollisionPoint.Z = ProjectilePos.Z + ProjectileVel.Z * Time;
+			if ((CollisionPoint.Y >= ActorMinY) && (CollisionPoint.Y <= ActorMaxY) && (CollisionPoint.Z >= ActorMinZ) && (CollisionPoint.Z <= ActorMaxZ))
+				CollisionX = Time;
+			else
+				CollisionX = -1;
+		}
+		else
+			CollisionX = -1;
+		// Collision on Y axis (XZ plane).
+		if (ProjectilePos.Y >= ActorMaxY)
+			Plane = ActorMaxY;
+		else
+			Plane = ActorMinY;
+		Diff = Plane - ProjectilePos.Y;
+		if (ProjectileVel.Y != 0)
+		{
+			Time = Diff / ProjectileVel.Y;
+			CollisionPoint.X = ProjectilePos.X + ProjectileVel.X * Time;
+			CollisionPoint.Y = ProjectilePos.Y + ProjectileVel.Y * Time;
+			CollisionPoint.Z = ProjectilePos.Z + ProjectileVel.Z * Time;
+			if ((CollisionPoint.X >= ActorMinX) && (CollisionPoint.X <= ActorMaxX) && (CollisionPoint.Z >= ActorMinZ) && (CollisionPoint.Z <= ActorMaxZ))
+				CollisionY = Time;
+			else
+				CollisionY = -1;
+		}
+		else
+			CollisionY = -1;
+		// Collision on Z axis (XY plane).
+		if (ProjectilePos.Z >= ActorMaxZ)
+			Plane = ActorMaxZ;
+		else
+			Plane = ActorMinZ;
+		Diff = Plane - ProjectilePos.Z;
+		if (ProjectileVel.Z != 0)
+		{
+			Time = Diff / ProjectileVel.Z;
+			CollisionPoint.X = ProjectilePos.X + ProjectileVel.X * Time;
+			CollisionPoint.Y = ProjectilePos.Y + ProjectileVel.Y * Time;
+			CollisionPoint.Z = ProjectilePos.Z + ProjectileVel.Z * Time;
+			if ((CollisionPoint.X >= ActorMinX) && (CollisionPoint.X <= ActorMaxX) && (CollisionPoint.Y >= ActorMinY) && (CollisionPoint.Y <= ActorMaxY))
+				CollisionZ = Time;
+			else
+				CollisionZ = -1;
+		}
+		else
+			CollisionZ = -1;
+		if (CollisionX > 0)
+			Result = CollisionX;
+		if ((CollisionY > 0) && ((Result > CollisionY) || (Result < 0)))
+			Result = CollisionY;
+		if ((CollisionZ > 0) && ((Result > CollisionZ) || (Result < 0)))
+			Result = CollisionZ;
+		return Result;
+	}
+	// Checks the surrounding space, in number of steps.
+	int CheckDirSpace(double Direction, int TestSteps = 3)
+	{
+		FCheckPosition CheckPosition;
+		do
+		{
+			Vector2 TestPosition = Vec2Angle(TestSteps * Speed, Direction);
+			if (CheckMove(Vec2Angle(TestSteps * Speed, Direction), PCM_DROPOFF, CheckPosition))
+				return TestSteps;
+			TestSteps--;
+		} until (TestSteps == 0);
+		return 0;
+	}
+	// Checks the surrounding space.
+	// Updates the PackedDirSpace variable.
+	void UpdateDirSpace()
+	{
+		int Result;
+		// PackedDirSpace = 0; Actually not needed!
+		Result = CheckDirSpace(Normalize180(Angle));
+		PackedDirSpace = Result; // Initialization.
+		Result = CheckDirSpace(Normalize180(Angle - 45));
+		PackedDirSpace |= Result << 2;
+		Result = CheckDirSpace(Normalize180(Angle + 45));
+		PackedDirSpace |= Result << 4;
+		Result = CheckDirSpace(Normalize180(Angle - 90));
+		PackedDirSpace |= Result << 6;
+		Result = CheckDirSpace(Normalize180(Angle + 90));
+		PackedDirSpace |= Result << 8;
+		Result = CheckDirSpace(Normalize180(Angle - 135));
+		PackedDirSpace |= Result << 10;
+		Result = CheckDirSpace(Normalize180(Angle + 135));
+		PackedDirSpace |= Result << 12;
+		Result = CheckDirSpace(Normalize180(Angle - 180));
+		PackedDirSpace |= Result << 14;
+	}
+	// Searches for incoming projectiles.
+	// The result is stored in the variables of the event handler instead of
+	// this actor instance, to reduce memory waste.
+	void UpdateEstimateDamage(double MaxDistance = 512)
+	{
+		// Calculate the eight positions around the current position at current speed.
+		CyberEventHandler.StepPos[0] = Vec3Angle(Speed, Angle);
+		CyberEventHandler.StepPos[1] = Vec3Angle(Speed, Angle - 45);
+		CyberEventHandler.StepPos[2] = Vec3Angle(Speed, Angle + 45);
+		CyberEventHandler.StepPos[3] = Vec3Angle(Speed, Angle - 90);
+		CyberEventHandler.StepPos[4] = Vec3Angle(Speed, Angle + 90);
+		CyberEventHandler.StepPos[5] = Vec3Angle(Speed, Angle - 135);
+		CyberEventHandler.StepPos[6] = Vec3Angle(Speed, Angle + 135);
+		CyberEventHandler.StepPos[7] = Vec3Angle(Speed, Angle - 180);
+		// Calculate the estimated damage from incoming projectiles.
+		CyberEventHandler.EstimateDamagePos = 0;
+		for (int I = 0; I < 8; I++)
+			CyberEventHandler.EstimateDamage[I] = 0;
+		for (int I = 0; I < KAIHandler.ProjectileList.Size(); I++)
+		{
+			Actor Projectile = KAIHandler.ProjectileList[I];
+			// Null check.
+			if ( !Projectile )
+				continue;
+			// Out of range check.
+			if ( Abs(Projectile.Pos.X - Pos.X) > MaxDistance )
+				continue;
+			if ( Abs(Projectile.Pos.Y - Pos.Y) > MaxDistance )
+				continue;
+			// Not hostile check.
+			//if (!IsActorHostile(Projectile.Target))
+			//	continue;
+			// Adjust the projectile position.
+			Vector3 ProjectilePos = Projectile.Pos + Projectile.Vel;
+			Class<Actor> ProjectileClass = Projectile.GetClass();
+			double TTC = TimeToCollision(
+				Pos, Radius, Height, Vel,
+				Projectile.Pos, Projectile.Radius, Projectile.Height, Projectile.Vel
+			);
+			if (TTC > 0)
+				CyberEventHandler.EstimateDamagePos += CyberEventHandler.GetMagnitudeDamage(ProjectileClass) / TTC;
+			for (int I = 0; I < 8; I++)
+			{
+				// Check collisions with the adjusted position.
+				double TTC = TimeToCollision(
+					CyberEventHandler.StepPos[I], Radius, Height, Vel,
+					ProjectilePos, Projectile.Radius, Projectile.Height, Projectile.Vel
+				);
+				if (TTC > 0)
+					CyberEventHandler.EstimateDamage[I] += CyberEventHandler.GetMagnitudeDamage(ProjectileClass) / TTC;
+			}
+		}
+	}
+	// Searches for any hostile target and manage the priority queue.
+	void UpdatePriorityQueue()
+	{
+		// Remove dead actors from the priority queue.
+		bool ListChanged;
+		do
+		{
+			ListChanged = false;
+			for (int I = 0; I < PriorityQueue.ItemsCount; I++)
+			{
+				// Remove monsters removed from the global handler.
+				int Index = CyberEventHandler.MonsterList.Find(PriorityQueue.Items[I].Monster);
+				if ((Index == CyberEventHandler.MonsterList.Size()) && !(PriorityQueue.Items[I].Monster is 'PlayerPawn'))
+				{
+					PriorityQueue.Remove(I);
+					ListChanged = true;
+					break;
+				}
+				// Remove monsters or players with zero health.
+				if (PriorityQueue.Items[I].Monster.Health <= 0)
+				{
+					PriorityQueue.Remove(I);
+					ListChanged = true;
+					break;
+				}
+				// Remove monsters with ETL_INITIAL experience.
+				if (PriorityQueue.Items[I].ExperiencedThreatLevel == ETL_INITIAL)
+					if (PriorityQueue.Items[I].Timer > 0)
+						PriorityQueue.Items[I].Timer--;
+					else
+					{
+						PriorityQueue.Remove(I);
+						ListChanged = true;
+						break;
+					}
+			}
+		} while (ListChanged);
+		// Update the threat level.
+		for (int I = 0; I < PriorityQueue.ItemsCount; I++)
+		{
+			TExperiencedThreatLevel ExperiencedThreatLevel = PriorityQueue.Items[I].ExperiencedThreatLevel;
+			if (CyberEventHandler.GetMagnitudeDamage(PriorityQueue.Items[I].Monster.GetClass()) > 128)
+				ExperiencedThreatLevel = ETL_DANGER;
+			if (CyberEventHandler.GetMagnitudeDamage(PriorityQueue.Items[I].Monster.GetClass()) > 256)
+				ExperiencedThreatLevel = ETL_CRITICAL;
+			TThreatLevel ThreatLevel = AssessThreatLevel(PriorityQueue.Items[I].Monster);
+			PriorityQueue.UpdatePriority(PriorityQueue.Items[I].Monster, ThreatLevel, ExperiencedThreatLevel);
+		}
+		// Check that there are any alive nearby players currently in the game.
+		for (int I = 0; I < Players.Size(); ++I)
+			if (PlayerInGame[I] && Players[I].MO.Health > 0 && IsActorHostile(Players[I].MO) && CheckSight(Players[I].MO))
+			{
+				TThreatLevel ThreatLevel = AssessThreatLevel(Players[I].MO);
+				TExperiencedThreatLevel ExperiencedThreatLevel = ETL_INITIAL;
+				int Index = PriorityQueue.Find(Players[I].MO);
+					if (Index >= 0)
+						PriorityQueue.UpdatePriority(Players[I].MO, ThreatLevel, PriorityQueue.Items[Index].ExperiencedThreatLevel);
+					else
+						PriorityQueue.Insert(Players[I].MO, ThreatLevel, ExperiencedThreatLevel);
+			}
+		if (CyberEventHandler)
+			for (int I = 0; I < CyberEventHandler.MonsterList.Size(); I++)
+				if (CheckSight(CyberEventHandler.MonsterList[I]))
+				{
+					Actor Monster = CyberEventHandler.MonsterList[I];
+					if (IsActorHostile(Monster) && !IsDead(Monster))
+					{
+						TThreatLevel ThreatLevel = AssessThreatLevel(Monster);
+						TExperiencedThreatLevel ExperiencedThreatLevel = ETL_INITIAL;
+						int Index = PriorityQueue.Find(Monster);
+						if (Index >= 0)
+							PriorityQueue.UpdatePriority(Monster, ThreatLevel, PriorityQueue.Items[Index].ExperiencedThreatLevel);
+						else
+							PriorityQueue.Insert(Monster, ThreatLevel, ExperiencedThreatLevel);
+					}
+				}
+	}
+	virtual void B_Die()
+	{
+		A_ScreamAndUnblock();
+		ResuscitationTimer = 120 * TICRATE;
+	}
+	virtual void B_JumpBegin()
+	{
+		bNONSHOOTABLE = true;
+		bNOPAIN = true;
+		A_StartSound(FJumpSound);
+	}
+	virtual void B_JumpEnd()
+	{
+		bNONSHOOTABLE = false;
+		bNOPAIN = false;
+	}
+	virtual void B_Missile(Class<Actor> ProjectileClass, double SpawnHeight = 32, double Angle = 0)
+	{
+		A_FaceTarget();
+		AimAtTarget();
+		A_SpawnProjectile(ProjectileClass, SpawnHeight, 0, Angle);
+	}
+	virtual void B_MoveForward()
+	{
+		if ( Target )
+		{
+			A_FaceTarget();
+			VelFromAngle();
+		}
+	}
+	virtual void B_MoveBackward()
+	{
+		if ( Target )
+		{
+			A_FaceTarget();
+			Angle = Normalize180(Angle - 180);
+			VelFromAngle();
+			A_FaceTarget();
+		}
+	}
+	virtual void B_Think()
+	{
+		SetStateLabel(CurStateLabel);
+	}
+	void B_DisableCloackingDevice()
+	{
+		A_SetRenderStyle(1.00, STYLE_Normal);
+		bSHADOW = false;
+	}
+	void B_EnableCloackingDevice()
+	{
+		if (GetRenderStyle() == STYLE_Normal)
+			A_StartSound("Shield/CloackingDevice", CHAN_ITEM, CHANF_DEFAULT);
+		A_SetRenderStyle(0.25, STYLE_Translucent);
+		bSHADOW = true;
+		CloackingDeviceTimer = 70;
+	}
+	default
+	{
+		Species "CyberActor";
+	}
+}
+
+// Basic behavior of custom cyber actor.
+class TCyberBasic : TCustomCyberActor
+{
+	override int DamageMobj(Actor Inflictor, Actor Source, int Damage, Name Mod, int Flags, double Angle)
+	{
+		int NewDamage = super.DamageMobj(Inflictor, Source, Damage, Mod, Flags, Angle);
+		if ((Source) && (IsActorHostile(Source)) && (Health > 0))
+		{
+			TThreatLevel ThreatLevel = AssessThreatLevel(Source);
+			TExperiencedThreatLevel ExperiencedThreatLevel = ETL_NORMAL;
+			if (Damage > 256)
+				ExperiencedThreatLevel = ETL_CRITICAL;
+			else
+				if (Damage > 128)
+					ExperiencedThreatLevel = ETL_DANGER;
+			int MonsterIndex = PriorityQueue.Find(Source);
+			if (MonsterIndex < 0)
+				PriorityQueue.Insert(Source, ThreatLevel, ExperiencedThreatLevel);
+			else
+			{
+				if (PriorityQueue.Items[MonsterIndex].ExperiencedThreatLevel > ExperiencedThreatLevel)
+					ExperiencedThreatLevel = PriorityQueue.Items[MonsterIndex].ExperiencedThreatLevel;
+				PriorityQueue.UpdatePriority(Source, ThreatLevel, ExperiencedThreatLevel);
+			}
+		}
+		return NewDamage;
+	}
+}
+
+// A cyber actor with a strong armor, that absorbs all damage below 10.
+class TCyberAdvanced : TCustomCyberActor
+{
+	override int DamageMobj(Actor Inflictor, Actor Source, int Damage, Name Mod, int Flags, double Angle)
+	{
+		// Reduce all damage below 10 to zero.
+		if ( Damage < 10 )
+			Damage = 0;
+		int NewDamage = super.DamageMobj(Inflictor, Source, Damage, Mod, Flags, Angle);
+		if ((Source) && (IsActorHostile(Source)) && (Health > 0))
+		{
+			TThreatLevel ThreatLevel = AssessThreatLevel(Source);
+			TExperiencedThreatLevel ExperiencedThreatLevel = ETL_NORMAL;
+			if (Damage > 256)
+				ExperiencedThreatLevel = ETL_CRITICAL;
+			else
+				if (Damage > 128)
+					ExperiencedThreatLevel = ETL_DANGER;
+			int MonsterIndex = PriorityQueue.Find(Source);
+			if (MonsterIndex < 0)
+				PriorityQueue.Insert(Source, ThreatLevel, ExperiencedThreatLevel);
+			else
+			{
+				if (PriorityQueue.Items[MonsterIndex].ExperiencedThreatLevel > ExperiencedThreatLevel)
+					ExperiencedThreatLevel = PriorityQueue.Items[MonsterIndex].ExperiencedThreatLevel;
+				PriorityQueue.UpdatePriority(Source, ThreatLevel, ExperiencedThreatLevel);
+			}
+		}
+		return NewDamage;
+	}
+	override bool SpecialBlastHandling(Actor Source, double Strength)
+	{
+		return false;
+	}
+	default
+	{
+		DamageFactor "BFGSplash", 0;
+		DamageFactor "APShell", 1000;
+		+Boss;
+		+DontBlast;
+		+DontDrain;
+		+DontGib;
+		+DontMorph;
+		+DontRip;
+		+FloorClip;
+		+NoRadiusDmg;
+		+SeeInvisible;
+	}
+}
+
+// -----------------------------------------------------------------------------
+// AI nodes.
+// -----------------------------------------------------------------------------
+
+// Node TimeFreeze: stops the behavior tree from this node onwards.
+class TCyberBasic_AINode_TimeFreeze : TBehavior
+{
+	static TCyberBasic_AINode_TimeFreeze Create()
+	{
+		TCyberBasic_AINode_TimeFreeze Result = New('TCyberBasic_AINode_TimeFreeze');
+		return Result;
+	}
+	override TStatus Update(TCustomCyberActor CustomCyberActor)
+	{
+		if (CustomCyberActor.IsFrozen())
+		{
+			// Invalidate route.
+			if (CustomCyberActor.RouteActive)
+				CustomCyberActor.RouteEnd();
+			return BH_FAILURE;
+		}
+		return BH_SUCCESS;
+	}
+}
+
+// Node Life: stops the behavior tree if the actor dies.
+// If the actor is alive, then it checks for surrounds, hazards and priority queue of enemies.
+// If the actor dies, then decrements its resuscitation timer and stops further AI nodes.
+class TCyberBasic_AINode_BasicLife : TBehavior
+{
+	static TCyberBasic_AINode_BasicLife Create()
+	{
+		TCyberBasic_AINode_BasicLife Result = New('TCyberBasic_AINode_BasicLife');
+		return Result;
+	}
+	override TStatus Update(TCustomCyberActor CustomCyberActor)
+	{
+		if (CustomCyberActor.Health < 0)
+		{
+			if (CustomCyberActor.ResuscitationTimer)
+				CustomCyberActor.ResuscitationTimer--;
+			return BH_FAILURE;
+		}
+		CustomCyberActor.UpdateDirSpace();
+		CustomCyberActor.UpdateEstimateDamage();
+		CustomCyberActor.UpdatePriorityQueue();
+		return BH_SUCCESS;
+	}
+}
+
+// Node SearchHelp: search for medical staff if needed.
+class TCyberBasic_AINode_SearchHelp : TBehavior
+{
+	int HealthThreshold;
+	static TCyberBasic_AINode_SearchHelp Create(int HealthThreshold = 0)
+	{
+		TCyberBasic_AINode_SearchHelp Result = New('TCyberBasic_AINode_SearchHelp');
+		Result.HealthThreshold = HealthThreshold;
+		return Result;
+	}
+	override TStatus Update(TCustomCyberActor CustomCyberActor)
+	{
+		// Clears deceased help givers.
+		if ((CustomCyberActor.HelpGiver) && (CustomCyberActor.HelpGiver.Health <= 0))
+			CustomCyberActor.HelpGiver = null;
+		if (CustomCyberActor.Health < HealthThreshold)
+		{
+			if (!CustomCyberActor.HelpGiver)
+			{
+				// Search the nearest medic or nurse.
+				TNavMeshActors NavMeshActors = CustomCyberActor.CyberEventHandler.NavMeshActors;
+				for (int I = 0; I < NavMeshActors.NavMeshActors.Size(); I++)
+				{
+					TCustomNavMeshActor CustomNavMeshActor = NavMeshActors.NavMeshActors[I];
+					if (CustomNavMeshActor.bNavMeshMedic || CustomNavMeshActor.bNavMeshNurse)
+					{
+						CustomCyberActor.HelpGiver = CustomNavMeshActor;
+						break;
+					}
+				}
+			}
+			if (CustomCyberActor.HelpGiver)
+			{
+				CustomCyberActor.Destination = CustomCyberActor.HelpGiver.Pos;
+				return BH_SUCCESS;
+			}
+		}
+		return BH_FAILURE;
+	}
+}
+
+// Node GiveAid: search for hurt friendly actors to help.
+class TCyberBasic_AINode_GiveAid : TBehavior
+{
+	static TCyberBasic_AINode_GiveAid Create()
+	{
+		TCyberBasic_AINode_GiveAid Result = New('TCyberBasic_AINode_GiveAid');
+		return Result;
+	}
+	override TStatus Update(TCustomCyberActor CustomCyberActor)
+	{
+		if (CustomCyberActor.HelpReceiver)
+		{
+			TCustomCyberActor CastHelpReceiver = TCustomCyberActor(CustomCyberActor.HelpReceiver);
+			if (!CastHelpReceiver)
+				CustomCyberActor.HelpReceiver = null;
+			else
+				if ((CastHelpReceiver.Health <= 0) && (CastHelpReceiver.ResuscitationTimer == 0))
+					CustomCyberActor.HelpReceiver = null;
+		}
+		if (!CustomCyberActor.HelpReceiver)
+		{
+			TNavMeshActors NavMeshActors = CustomCyberActor.CyberEventHandler.NavMeshActors;
+			for (int I = 0; I < NavMeshActors.NavMeshActors.Size(); I++)
+			{
+				TCustomNavMeshActor CustomNavMeshActor = NavMeshActors.NavMeshActors[I];
+
+				if ((CustomCyberActor != CustomNavMeshActor) && (!CustomCyberActor.IsActorHostile(CustomNavMeshActor)) && ((CustomNavMeshActor.Health * 5) < CustomNavMeshActor.default.Health))
+				{
+					if ((CustomNavMeshActor.Health <= 0) && (CustomNavMeshActor.ResuscitationTimer == 0))
+						continue;
+					if ((CustomCyberActor.bNavMeshNurse) && (CustomNavMeshActor.Health <= 0))
+						continue;
+					if ((CustomCyberActor.NavMesh) && (CustomCyberActor.CheckSight(CustomNavMeshActor)))
+					{
+						CustomCyberActor.HelpReceiver = CustomNavMeshActor;
+						break;
+					}
+					else
+						if (CustomCyberActor.RouteSearch(CustomNavMeshActor.Pos))
+						{
+							CustomCyberActor.HelpReceiver = CustomNavMeshActor;
+							break;
+						}
+				}
+			}
+		}
+		if (CustomCyberActor.HelpReceiver)
+		{
+			CustomCyberActor.Destination = CustomCyberActor.HelpReceiver.Pos;
+			int Distance = CustomCyberActor.Distance2D(CustomCyberActor.HelpReceiver) - CustomCyberActor.Radius - CustomCyberActor.HelpReceiver.Radius;
+			if (Distance <= CustomCyberActor.MeleeRange)
+			{
+				if (CustomCyberActor.FindState("Heal"))
+					CustomCyberActor.UpdateStateLabel("Heal", true);
+				if (CustomCyberActor.HelpReceiver.Health <= 0)
+				{
+					bool IsFriendly = CustomCyberActor.HelpReceiver.bFriendly;
+					CustomCyberActor.RaiseActor(CustomCyberActor.HelpReceiver);
+					CustomCyberActor.HelpReceiver.bFriendly = IsFriendly;
+					return BH_SUCCESS;
+				}
+				else
+				{
+					CustomCyberActor.HelpReceiver.Health += 5;
+					if (CustomCyberActor.HelpReceiver.Health >= CustomCyberActor.HelpReceiver.default.Health)
+					{
+						CustomCyberActor.HelpReceiver.Health = CustomCyberActor.HelpReceiver.default.Health;
+						CustomCyberActor.HelpReceiver = null;
+					}
+				}
+			}
+			if (CustomCyberActor.CheckSight(CustomCyberActor.HelpReceiver))
+				CustomCyberActor.A_Face(CustomCyberActor.HelpReceiver);
+			return BH_SUCCESS;
+		}
+		return BH_FAILURE;
+	}
+}
+
+// Node RepairVehicles: search for friendly vehicles to repair.
+class TCyberBasic_AINode_RepairVehicle : TBehavior
+{
+	static TCyberBasic_AINode_RepairVehicle Create()
+	{
+		TCyberBasic_AINode_RepairVehicle Result = New('TCyberBasic_AINode_RepairVehicle');
+		return Result;
+	}
+	override TStatus Update(TCustomCyberActor CustomCyberActor)
+	{
+		if ((CustomCyberActor.HelpReceiver) && (CustomCyberActor.HelpReceiver.Health <= 0))
+			CustomCyberActor.HelpReceiver = null;
+		if (!CustomCyberActor.HelpReceiver)
+		{
+			for (int I = 0; I < CustomCyberActor.KAIHandler.AllVehicles.Size(); I++)
+			{
+				KAI_BaseVehicle Vehicle = CustomCyberActor.KAIHandler.AllVehicles[I];
+				if ((!CustomCyberActor.IsActorHostile(Vehicle)) && (Vehicle.Health * 5) < Vehicle.default.Health)
+				{
+					CustomCyberActor.HelpReceiver = Vehicle;
+					break;
+				}
+			}
+		}
+		if (CustomCyberActor.HelpReceiver)
+		{
+			CustomCyberActor.Destination = CustomCyberActor.HelpReceiver.Pos;
+			int Distance = CustomCyberActor.Distance2D(CustomCyberActor.HelpReceiver) - CustomCyberActor.Radius - CustomCyberActor.HelpReceiver.Radius;
+			if (Distance <= CustomCyberActor.MeleeRange)
+			{
+				if (CustomCyberActor.FindState("RepairVehicle"))
+					CustomCyberActor.UpdateStateLabel("RepairVehicle", true);
+				CustomCyberActor.HelpReceiver.Health += 5;
+				if (CustomCyberActor.HelpReceiver.Health >= CustomCyberActor.HelpReceiver.default.Health)
+				{
+					CustomCyberActor.HelpReceiver.Health = CustomCyberActor.HelpReceiver.default.Health;
+					CustomCyberActor.HelpReceiver = null;
+				}
+			}
+			if (CustomCyberActor.CheckSight(CustomCyberActor.HelpReceiver))
+				CustomCyberActor.A_Face(CustomCyberActor.HelpReceiver);
+			return BH_SUCCESS;
+		}
+		return BH_FAILURE;
+	}
+}
+
+// Node Mission: set strategy to follow mission.
+class TCyberBasic_AINode_Goal : TBehavior
+{
+	static TCyberBasic_AINode_Goal Create()
+	{
+		TCyberBasic_AINode_Goal Result = New('TCyberBasic_AINode_Goal');
+		return Result;
+	}
+	override TStatus Update(TCustomCyberActor CustomCyberActor)
+	{
+		return BH_FAILURE;
+	}
+}
+
+// Node Fight: set strategy to fight enemies.
+class TCyberBasic_AINode_Fight : TBehavior
+{
+	static TCyberBasic_AINode_Fight Create()
+	{
+		TCyberBasic_AINode_Fight Result = New('TCyberBasic_AINode_Fight');
+		return Result;
+	}
+	override TStatus Update(TCustomCyberActor CustomCyberActor)
+	{
+		CustomCyberActor.Destination = CustomCyberActor.Pos;
+		if (CustomCyberActor.PriorityQueue.Items.Size() > 0)
+		{
+			CustomCyberActor.TargetAcquired = true;
+			return BH_SUCCESS;
+		}
+		return BH_FAILURE;
+	}
+}
+
+// Node Gesture: perform gesture animation.
+class TCyberBasic_AINode_Gesture : TBehavior
+{
+	static TCyberBasic_AINode_Gesture Create()
+	{
+		TCyberBasic_AINode_Gesture Result = New('TCyberBasic_AINode_Gesture');
+		return Result;
+	}
+	override TStatus Update(TCustomCyberActor CustomCyberActor)
+	{
+		if (CustomCyberActor.PriorityQueue.Items.Size() == 0)
+			CustomCyberActor.TargetAcquired = false;
+		return BH_FAILURE;
+	}
+}
+
+// Node Rest: perform idle animation.
+class TCyberBasic_AINode_Rest : TBehavior
+{
+	static TCyberBasic_AINode_Rest Create()
+	{
+		TCyberBasic_AINode_Rest Result = New('TCyberBasic_AINode_Rest');
+		return Result;
+	}
+	override TStatus Update(TCustomCyberActor CustomCyberActor)
+	{
+		CustomCyberActor.Destination = CustomCyberActor.Pos;
+		CustomCyberActor.UpdateStateLabel("Idle");
+		return BH_SUCCESS;
+	}
+}
+
+// Node ChaseMode: decide the chase mode.
+class TCyberBasic_AINode_ChaseMode : TBehavior
+{
+	int RunSpeed;
+	int WalkSpeed;
+	static TCyberBasic_AINode_ChaseMode Create(int WalkSpeed, int RunSpeed)
+	{
+		TCyberBasic_AINode_ChaseMode Result = New('TCyberBasic_AINode_ChaseMode');
+		Result.WalkSpeed = WalkSpeed;
+		Result.RunSpeed = RunSpeed;
+		return Result;
+	}
+	override TStatus Update(TCustomCyberActor CustomCyberActor)
+	{
+		if (CustomCyberActor.PriorityQueue.Items.Size() > 0)
+		{
+			TPriorityQueueItem PriorityQueueItem = CustomCyberActor.PriorityQueue.Items[0];
+			if
+			(
+				(CustomCyberActor.IsIndestructible(PriorityQueueItem.Monster))
+				|| (CustomCyberActor.HasGodMode(PriorityQueueItem.Monster))
+				|| (CustomCyberActor.HasBuddha(PriorityQueueItem.Monster))
+				|| (CustomCyberActor.IsFrightening(PriorityQueueItem.Monster))
+			)
+			{
+				CustomCyberActor.CurStateLabel = "Run";
+				CustomCyberActor.Speed = RunSpeed;
+				return BH_SUCCESS;
+			}
+			if
+			(
+				(PriorityQueueItem.ExperiencedThreatLevel == ETL_CRITICAL)
+				|| (PriorityQueueItem.ThreatLevel > CustomCyberActor.ThreatLevelThreshold)
+			)
+			{
+				CustomCyberActor.CurStateLabel = "Run";
+				CustomCyberActor.Speed = RunSpeed;
+				return BH_SUCCESS;
+			}
+			if
+			(
+				(PriorityQueueItem.ExperiencedThreatLevel == ETL_DANGER)
+				|| (PriorityQueueItem.ThreatLevel == CustomCyberActor.ThreatLevelThreshold)
+			)
+			{
+				CustomCyberActor.CurStateLabel = "Run";
+				CustomCyberActor.Speed = RunSpeed;
+				return BH_SUCCESS;
+			}
+			if
+			(
+				(PriorityQueueItem.ExperiencedThreatLevel == ETL_NORMAL)
+				|| (PriorityQueueItem.ThreatLevel >= THREAT_NORMAL)
+			)
+			{
+				CustomCyberActor.CurStateLabel = "Run";
+				CustomCyberActor.Speed = RunSpeed;
+				return BH_SUCCESS;
+			}
+			CustomCyberActor.CurStateLabel = "Walk";
+			CustomCyberActor.Speed = WalkSpeed;
+			return BH_SUCCESS;
+		}
+		return BH_SUCCESS;
+	}
+}
+
+// Node Jump: perform a jump, to try escape unavoidable damage, if the "Jump" state sequence exists.
+class TCyberBasic_AINode_Jump : TBehavior
+{
+	const HalfSqrtTwo = 0.70710678118;
+	int VerticalSpeed;
+	static TCyberBasic_AINode_Jump Create(int VerticalSpeed = 6)
+	{
+		TCyberBasic_AINode_Jump Result = New('TCyberBasic_AINode_Jump');
+		Result.VerticalSpeed = VerticalSpeed;
+		return Result;
+	}
+	virtual int GetJumpVelZ()
+	{
+		return VerticalSpeed;
+	}
+	override TStatus Update(TCustomCyberActor CustomCyberActor)
+	{
+		if (CustomCyberActor.Jumping)
+		{
+			if ((CustomCyberActor.Pos.Z == CustomCyberActor.FloorZ) || (CustomCyberActor.bOnMobj))
+				CustomCyberActor.Jumping = false;
+			else
+				return BH_RUNNING;
+		}
+		// Check if a jump is required, to avoid incoming damage.
+		if (CustomCyberActor.FindState('Jump', true))
+		{
+			// Calculate the number of steps in the eight directions.
+			int StepsDir[8];
+			StepsDir[0] = CustomCyberActor.PackedDirSpace & 3;
+			StepsDir[1] = (CustomCyberActor.PackedDirSpace >> 2) & 3;
+			StepsDir[2] = (CustomCyberActor.PackedDirSpace >> 4) & 3;
+			StepsDir[3] = (CustomCyberActor.PackedDirSpace >> 6) & 3;
+			StepsDir[4] = (CustomCyberActor.PackedDirSpace >> 8) & 3;
+			StepsDir[5] = (CustomCyberActor.PackedDirSpace >> 10) & 3;
+			StepsDir[6] = (CustomCyberActor.PackedDirSpace >> 12) & 3;
+			StepsDir[7] = (CustomCyberActor.PackedDirSpace >> 14) & 3;
+			// Calculate if the jump is required.
+			TCyberEventHandler CyberEventHandler = CustomCyberActor.CyberEventHandler;
+			int DamagingDirs = CyberEventHandler.EstimateDamagePos > 0 ? 1 : 0;
+			for (int I = 0; I < 8; I++)
+				if (CyberEventHandler.EstimateDamage[I] > 0)
+					DamagingDirs++;
+			if (DamagingDirs >= 8)
+			{
+				int JumpDir = -1;
+				// Checks the direction with largest available space.
+				if (CustomCyberActor.PreferredDirection == 1)
+				{
+					if (StepsDir[3] >= 3)
+						JumpDir = 3;
+					else
+						if (StepsDir[5] >= 3)
+							JumpDir = 5;
+						else
+							if (StepsDir[1] >= 3)
+								JumpDir = 1;
+				}
+				else
+				{
+					if (StepsDir[4] >= 3)
+						JumpDir = 4;
+					else
+						if (StepsDir[6] >= 3)
+							JumpDir = 6;
+						else
+							if (StepsDir[2] >= 3)
+								JumpDir = 2;
+				}
+				if (JumpDir < 0)
+					if (StepsDir[7] >= 3)
+						JumpDir = 7;
+					else
+						JumpDir = 0;
+				double VelX = 0;
+				double VelY = 0;
+				double VelZ = GetJumpVelZ();
+				switch (JumpDir)
+				{
+					case 0:
+						VelX = CustomCyberActor.Speed;
+						break;
+					case 1:
+						VelX = CustomCyberActor.Speed * HalfSqrtTwo;
+						VelY = -CustomCyberActor.Speed * HalfSqrtTwo;
+						break;
+					case 2:
+						VelX = CustomCyberActor.Speed * HalfSqrtTwo;
+						VelY = CustomCyberActor.Speed * HalfSqrtTwo;
+						break;
+					case 3:
+						VelY = -CustomCyberActor.Speed;
+						break;
+					case 4:
+						VelY = CustomCyberActor.Speed;
+						break;
+					case 5:
+						VelX = -CustomCyberActor.Speed * HalfSqrtTwo;
+						VelY = -CustomCyberActor.Speed * HalfSqrtTwo;
+						break;
+					case 6:
+						VelX = -CustomCyberActor.Speed * HalfSqrtTwo;
+						VelY = CustomCyberActor.Speed * HalfSqrtTwo;
+						break;
+					case 7:
+						VelX = -CustomCyberActor.Speed * HalfSqrtTwo;
+						break;
+				}
+				CustomCyberActor.Jumping = true;
+				CustomCyberActor.UpdateStateLabel("Jump", true);
+				CustomCyberActor.A_ChangeVelocity(VelX, VelY, VelZ, CVF_RELATIVE);
+				return BH_RUNNING;
+			}
+		}
+		return BH_FAILURE;
+	}
+}
+
+// Node CoverZone: search for a cover zone using the navmesh.
+class TCyberBasic_AINode_CoverZone : TBehavior
+{
+	static TCyberBasic_AINode_CoverZone Create()
+	{
+		TCyberBasic_AINode_CoverZone Result = New('TCyberBasic_AINode_CoverZone');
+		return Result;
+	}
+	override TStatus Update(TCustomCyberActor CustomCyberActor)
+	{
+		// Not implemented yet.
+		return BH_FAILURE;
+	}
+}
+
+// Node NextMove: perform tactical movement.
+class TCyberBasic_AINode_NextMove : TBehavior
+{
+	static TCyberBasic_AINode_NextMove Create()
+	{
+		TCyberBasic_AINode_NextMove Result = New('TCyberBasic_AINode_NextMove');
+		return Result;
+	}
+	virtual double CalculateUtilityDistance(TCustomCyberActor CustomCyberActor, TPriorityQueueItem PriorityQueueItem)
+	{
+		if
+		(
+			(CustomCyberActor.IsIndestructible(PriorityQueueItem.Monster))
+			|| (CustomCyberActor.HasGodMode(PriorityQueueItem.Monster))
+			|| (CustomCyberActor.HasBuddha(PriorityQueueItem.Monster))
+			|| (CustomCyberActor.IsFrightening(PriorityQueueItem.Monster))
+		)
+			return 1048576;	// As far as possible!
+		if
+		(
+			(PriorityQueueItem.ExperiencedThreatLevel == ETL_CRITICAL)
+			|| (PriorityQueueItem.ThreatLevel > CustomCyberActor.ThreatLevelThreshold)
+		)
+			return 1024;
+		if
+		(
+			(PriorityQueueItem.ExperiencedThreatLevel == ETL_DANGER)
+			|| (PriorityQueueItem.ThreatLevel == CustomCyberActor.ThreatLevelThreshold)
+		)
+			return 384;
+		if
+		(
+			(PriorityQueueItem.ExperiencedThreatLevel == ETL_NORMAL)
+			|| (PriorityQueueItem.ThreatLevel >= THREAT_NORMAL)
+		)
+			return 256;
+		return 128;
+	}
+	virtual double CalculateUtilityScore(TCustomCyberActor CustomCyberActor, TPriorityQueueItem PriorityQueueItem)
+	{
+		if
+		(
+			(CustomCyberActor.IsIndestructible(PriorityQueueItem.Monster))
+			|| (CustomCyberActor.HasGodMode(PriorityQueueItem.Monster))
+			|| (CustomCyberActor.HasBuddha(PriorityQueueItem.Monster))
+			|| (CustomCyberActor.IsFrightening(PriorityQueueItem.Monster))
+		)
+			return 100;
+		if (PriorityQueueItem.ExperiencedThreatLevel == ETL_CRITICAL)
+			return 64;
+		if (PriorityQueueItem.ExperiencedThreatLevel == ETL_DANGER)
+			return 48;
+		switch (PriorityQueueItem.ThreatLevel)
+		{
+			case THREAT_UNSTOPPABLE:
+				return 64;
+				break;
+			case THREAT_SUPERDANGER:
+				return 48;
+				break;
+			case THREAT_VERYDANGEROUS:
+				return 40;
+				break;
+			case THREAT_DANGEROUS:
+				return 32;
+				break;
+			case THREAT_ABOVENORMAL:
+				return 24;
+				break;
+			case THREAT_NORMAL:
+				return 16;
+				break;
+			case THREAT_MILD:
+				return 8;
+				break;
+			case THREAT_LOW:
+				return 4;
+				break;
+			case THREAT_VERYLOW:
+				return 3;
+				break;
+			case THREAT_NONE:
+				return 2;
+				break;
+			default:
+				return 1;
+				break;
+		}
+		return 1;
+	}
+	override TStatus Update(TCustomCyberActor CustomCyberActor)
+	{
+		TCyberEventHandler CyberEventHandler = CustomCyberActor.CyberEventHandler;
+		int SideDir1[8] = {2, 0, 4, 1, 6, 3, 7, 5};
+		int SideDir2[8] = {1, 3, 0, 5, 2, 7, 4, 6};
+		// Calculate the number of steps in the eight directions.
+		int StepsDir[8];
+		StepsDir[0] = CustomCyberActor.PackedDirSpace & 3;
+		StepsDir[1] = (CustomCyberActor.PackedDirSpace >> 2) & 3;
+		StepsDir[2] = (CustomCyberActor.PackedDirSpace >> 4) & 3;
+		StepsDir[3] = (CustomCyberActor.PackedDirSpace >> 6) & 3;
+		StepsDir[4] = (CustomCyberActor.PackedDirSpace >> 8) & 3;
+		StepsDir[5] = (CustomCyberActor.PackedDirSpace >> 10) & 3;
+		StepsDir[6] = (CustomCyberActor.PackedDirSpace >> 12) & 3;
+		StepsDir[7] = (CustomCyberActor.PackedDirSpace >> 14) & 3;
+		// Manage the reverse direction timer.
+		if (CustomCyberActor.ReverseDirectionTimer)
+			CustomCyberActor.ReverseDirectionTimer--;
+		if (CustomCyberActor.ReverseDirectionTimer == 0)
+			if (((CustomCyberActor.PreferredDirection == 1) && (StepsDir[3] == 0)) || ((CustomCyberActor.PreferredDirection == -1) && (StepsDir[4] == 0)))
+			{
+				CustomCyberActor.ReverseDirectionTimer = Random(16, 32);
+				CustomCyberActor.PreferredDirection *= -1;
+			}
+		// Choose the best tactical next step.
+		double DistanceStep[8];
+		int TargetsCount = CustomCyberActor.PriorityQueue.Items.Size();
+		int VisibleTargetsCount = 0;
+		if (TargetsCount > 0)
+		{
+			for (int I = 0; I < TargetsCount; I++)
+				if (CustomCyberActor.CheckSight(CustomCyberActor.PriorityQueue.Items[I].Monster))
+					VisibleTargetsCount++;
+			if (VisibleTargetsCount > 0)
+			{
+				for (int I = 0; I < TargetsCount; I++)
+					if (CustomCyberActor.CheckSight(CustomCyberActor.PriorityQueue.Items[I].Monster))
+					{
+						TPriorityQueueItem PriorityQueueItem = CustomCyberActor.PriorityQueue.Items[I];
+						double UtilityDistance = CalculateUtilityDistance(CustomCyberActor, PriorityQueueItem) ** 2;
+						double UtilityScore = CalculateUtilityScore(CustomCyberActor, PriorityQueueItem);
+						for (int I = 0; I < 8; I++)
+							DistanceStep[I] = (CyberEventHandler.StepPos[I].X - PriorityQueueItem.Monster.Pos.X) ** 2 + (CyberEventHandler.StepPos[I].Y - PriorityQueueItem.Monster.Pos.Y) ** 2;
+						int DistanceDir = 0;
+						double DistanceMin = DistanceStep[0];
+						for (int I = 1; I < 8; I++)
+							if (DistanceMin > DistanceStep[I])
+							{
+								DistanceDir = I;
+								DistanceMin = DistanceStep[I];
+							}
+						if ((DistanceMin >= UtilityDistance) && (DistanceMin <= (UtilityDistance * 4)))
+							if (CustomCyberActor.PreferredDirection == 1)
+								DistanceDir = 3;
+							else
+								DistanceDir = 4;
+						else
+							if (DistanceMin < UtilityDistance)
+								DistanceDir = 7 - DistanceDir; // Inverts the direction.
+						// Blend in the utility score.
+						CyberEventHandler.EstimateDamage[DistanceDir] -= UtilityScore;
+						CyberEventHandler.EstimateDamage[SideDir1[DistanceDir]] -= UtilityScore / 2.8;
+						CyberEventHandler.EstimateDamage[SideDir2[DistanceDir]] -= UtilityScore / 2.8;
+						CyberEventHandler.EstimateDamage[7 - DistanceDir] += UtilityScore;
+						CyberEventHandler.EstimateDamage[7 - SideDir1[DistanceDir]] += UtilityScore / 2.8;
+						CyberEventHandler.EstimateDamage[7 - SideDir2[DistanceDir]] += UtilityScore / 2.8;
+					}
+				// Clear the route.
+				if (CustomCyberActor.RouteActive)
+					CustomCyberActor.RouteEnd();
+			}
+		}
+		else
+		{
+			if (CustomCyberActor.Destination == CustomCyberActor.Pos)
+			{
+				// No destination, clear next step.
+				CustomCyberActor.NextStep = CustomCyberActor.Pos;
+			}
+			else
+			{
+				// Sets the next step using only projectile hazards, no monster tactical analysis.
+				//if (CustomCyberActor.IsPosReachable(CustomCyberActor.Destination, 64))
+				int DestinationPoly = CustomCyberActor.NavMesh.SearchPolygon(CustomCyberActor.Destination);
+				int SourcePoly = CustomCyberActor.NavMesh.SearchPolygon(CustomCyberActor.Pos);
+				if ((DestinationPoly == SourcePoly) && (DestinationPoly >= 0))
+				{
+					// The destination is reachable (same navmesh polygon).
+					for (int I = 0; I < 8; I++)
+						DistanceStep[I] = (CyberEventHandler.StepPos[I].X - CustomCyberActor.Destination.X) ** 2 + (CyberEventHandler.StepPos[I].Y - CustomCyberActor.Destination.Y) ** 2;
+					int DistanceDir = 0;
+					double DistanceMin = DistanceStep[0];
+					for (int I = 1; I < 8; I++)
+						if (DistanceMin > DistanceStep[I])
+						{
+							DistanceDir = I;
+							DistanceMin = DistanceStep[I];
+						}
+					// Blend in the distance to destination.
+					double UtilityScore = 15;
+					CyberEventHandler.EstimateDamage[DistanceDir] -= UtilityScore;
+					CyberEventHandler.EstimateDamage[SideDir1[DistanceDir]] -= UtilityScore / 2.5;
+					CyberEventHandler.EstimateDamage[SideDir2[DistanceDir]] -= UtilityScore / 2.8;
+					CyberEventHandler.EstimateDamage[7 - DistanceDir] += UtilityScore;
+					CyberEventHandler.EstimateDamage[7 - SideDir1[DistanceDir]] += UtilityScore / 2.5;
+					CyberEventHandler.EstimateDamage[7 - SideDir2[DistanceDir]] += UtilityScore / 2.8;
+					// Clear the route.
+					if (CustomCyberActor.RouteActive)
+						CustomCyberActor.RouteEnd();
+				}
+				else
+				{
+					// The destination is not: use the navmesh.
+					Vector3 NextPoint;
+					if (CustomCyberActor.RouteActive)
+					{
+						CustomCyberActor.RouteUpdate(CustomCyberActor.Destination);
+						NextPoint = CustomCyberActor.Route[CustomCyberActor.RouteStep].Position;
+					}
+					else
+						if (CustomCyberActor.RouteSearch(CustomCyberActor.Destination))
+						{
+							CustomCyberActor.RouteBegin();
+							NextPoint = CustomCyberActor.Route[CustomCyberActor.RouteStep].Position;
+						}
+						else
+						{
+							// Don't know where to go: simply use FindRandomMovePos.
+							NextPoint = CustomCyberActor.FindRandomMovePos();
+						}
+					for (int I = 0; I < 8; I++)
+						DistanceStep[I] = (CyberEventHandler.StepPos[I].X - NextPoint.X) ** 2 + (CyberEventHandler.StepPos[I].Y - NextPoint.Y) ** 2;
+					int DistanceDir = 0;
+					double DistanceMin = DistanceStep[0];
+					for (int I = 1; I < 8; I++)
+						if (DistanceMin > DistanceStep[I])
+						{
+							DistanceDir = I;
+							DistanceMin = DistanceStep[I];
+						}
+					// Blend in the distance to destination.
+					double UtilityScore = 15;
+					CyberEventHandler.EstimateDamage[DistanceDir] -= UtilityScore;
+					CyberEventHandler.EstimateDamage[SideDir1[DistanceDir]] -= UtilityScore / 2.5;
+					CyberEventHandler.EstimateDamage[SideDir2[DistanceDir]] -= UtilityScore / 2.8;
+					CyberEventHandler.EstimateDamage[7 - DistanceDir] += UtilityScore;
+					CyberEventHandler.EstimateDamage[7 - SideDir1[DistanceDir]] += UtilityScore / 2.5;
+					CyberEventHandler.EstimateDamage[7 - SideDir2[DistanceDir]] += UtilityScore / 2.8;
+				}
+			}
+		}
+		// Penalize the blocked directions.
+		for (int I = 0; I < 8; I++)
+			if (StepsDir[I] == 0)
+				CyberEventHandler.EstimateDamage[I] += 1048576;
+		// Choose the next step.
+		double MinDamage = CyberEventHandler.EstimateDamage[0];
+		for (int I = 1; I < 8; I++)
+			if (MinDamage > CyberEventHandler.EstimateDamage[I])
+				MinDamage = CyberEventHandler.EstimateDamage[I];
+		if ((MinDamage < CyberEventHandler.EstimateDamagePos))
+		{
+			for (int I = 0; I < 8; I++)
+				if (CyberEventHandler.EstimateDamage[I] == MinDamage)
+				{
+					CustomCyberActor.NextStep = CyberEventHandler.StepPos[I];
+					break;
+				}
+		}
+		else
+			CustomCyberActor.NextStep = CustomCyberActor.Pos;
+		return BH_SUCCESS;
+	}
+}
+
+// Node NextMove: perform the actual movement.
+class TCyberBasic_AINode_Move : TBehavior
+{
+	static TCyberBasic_AINode_Move Create()
+	{
+		TCyberBasic_AINode_Move Result = New('TCyberBasic_AINode_Move');
+		return Result;
+	}
+	override TStatus Update(TCustomCyberActor CustomCyberActor)
+	{
+		if ((CustomCyberActor.NextStep == CustomCyberActor.Pos) && (CustomCyberActor.PriorityQueue.Items.Size() == 0))
+			return BH_SUCCESS;
+		if (CustomCyberActor.ReactionTime)
+			CustomCyberActor.ReactionTime--;
+		if (CustomCyberActor.MoveCount)
+		{
+			// Use the excellent KAI_MoveTowards function, to choose a random direction and move.
+			// It also decrement the MoveCount variable.
+			CustomCyberActor.KAI_MoveTowards(CustomCyberActor.NextStep); //, 1.0, 10, CHF_NORANDOMTURN);
+		}
+		else
+		{
+			// Use the native TryMove function, to perform the movement.
+			FCheckPosition CheckPosition;
+			bool Result = CustomCyberActor.TryMove(CustomCyberActor.NextStep.XY, 0, false, CheckPosition);
+			if (!Result)
+			{
+				// TryMove failed: set MoveCount and then use KAI_MoveTowards.
+				CustomCyberActor.MoveCount = Random(0, 8);
+				CustomCyberActor.KAI_MoveTowards(CustomCyberActor.NextStep); //, 1.0, 10, CHF_NORANDOMTURN);
+			}
+		}
+		return BH_SUCCESS;
+	}
+}
+
+// Node CombatBasic: select target from the priority queue.
+class TCyberBasic_AINode_BasicCombat : TBehavior
+{
+	static TCyberBasic_AINode_BasicCombat Create()
+	{
+		TCyberBasic_AINode_BasicCombat Result = New('TCyberBasic_AINode_BasicCombat');
+		return Result;
+	}
+	override TStatus Update(TCustomCyberActor CustomCyberActor)
+	{
+		if (CustomCyberActor.PriorityQueue.Items.Size() > 0)
+		{
+			// Pick the highest priority monster.
+			TPriorityQueueItem PriorityQueueItem = CustomCyberActor.PriorityQueue.Items[0];
+			CustomCyberActor.Target = PriorityQueueItem.Monster;
+			CustomCyberActor.A_FaceTarget();
+			if
+			(
+				(CustomCyberActor.IsIndestructible(PriorityQueueItem.Monster))
+				|| (CustomCyberActor.HasGodMode(PriorityQueueItem.Monster))
+				|| (CustomCyberActor.HasBuddha(PriorityQueueItem.Monster))
+				|| (CustomCyberActor.IsFrightening(PriorityQueueItem.Monster))
+			)
+				return BH_FAILURE; // Don't attack
+			// Use CanAttack & ShouldAttack to check if attack is desired; don't change state!
+			if (CustomCyberActor.CanAttack())
+				return BH_SUCCESS;
+			return BH_FAILURE;
+		}
+		return BH_FAILURE;
+	}
+}
+
+// Node CombatMelee: check if fit for a missile attack.
+class TCyberBasic_AINode_CombatMelee : TUtilityBehavior
+{
+	static TCyberBasic_AINode_CombatMelee Create()
+	{
+		TCyberBasic_AINode_CombatMelee Result = New('TCyberBasic_AINode_CombatMelee');
+		return Result;
+	}
+	override double CalculateUtility(TCustomCyberActor CustomCyberActor)
+	{
+		if (CustomCyberActor.IsInAttackState())
+			return BH_RUNNING;
+		TPriorityQueueItem PriorityQueueItem = CustomCyberActor.PriorityQueue.Items[0];
+		if (PriorityQueueItem.ExperiencedThreatLevel == ETL_CRITICAL)
+			return 0;
+		if (PriorityQueueItem.ExperiencedThreatLevel == ETL_DANGER)
+			return 0;
+		switch (PriorityQueueItem.ThreatLevel)
+		{
+			case THREAT_UNSTOPPABLE:
+				return 0;
+				break;
+			case THREAT_SUPERDANGER:
+				return 0;
+				break;
+			case THREAT_VERYDANGEROUS:
+				return 0;
+				break;
+			case THREAT_DANGEROUS:
+				return 0.1;
+				break;
+			case THREAT_ABOVENORMAL:
+				return 0.2;
+				break;
+			case THREAT_NORMAL:
+				return 0.3;
+				break;
+			case THREAT_MILD:
+				return 0.5;
+				break;
+			case THREAT_LOW:
+				return 0.6;
+				break;
+			case THREAT_VERYLOW:
+				return 0.7;
+				break;
+			case THREAT_NONE:
+				return 0.8;
+				break;
+			default:
+				return 0;
+				break;
+		}
+		return 0;
+	}
+	override TStatus Update(TCustomCyberActor CustomCyberActor)
+	{
+		if (CustomCyberActor.MeleeState)
+		{
+			if (CustomCyberActor.CheckMeleeRange())
+				CustomCyberActor.UpdateStateLabel("Melee", true);
+			return BH_SUCCESS;
+		}
+		return BH_FAILURE;
+	}
+}
+
+// Node CombatMissile: check if fit for a missile attack.
+class TCyberBasic_AINode_CombatMissile : TUtilityBehavior
+{
+	static TCyberBasic_AINode_CombatMissile Create()
+	{
+		TCyberBasic_AINode_CombatMissile Result = New('TCyberBasic_AINode_CombatMissile');
+		return Result;
+	}
+	override double CalculateUtility(TCustomCyberActor CustomCyberActor)
+	{
+		return 0.5;
+	}
+	override TStatus Update(TCustomCyberActor CustomCyberActor)
+	{
+		if (CustomCyberActor.IsInAttackState())
+			return BH_RUNNING;
+		if (CustomCyberActor.MissileState)
+		{
+			if (CustomCyberActor.CheckMissileRange())
+				CustomCyberActor.UpdateStateLabel("Missile", true);
+			return BH_SUCCESS;
+		}
+		return BH_FAILURE;
+	}
+}
+
+// Node CloackingDevice: check if should use the cloacking device.
+class TCyberBasic_AINode_CloackingDevice : TBehavior
+{
+	static TCyberBasic_AINode_CloackingDevice Create()
+	{
+		TCyberBasic_AINode_CloackingDevice Result = New('TCyberBasic_AINode_CloackingDevice');
+		return Result;
+	}
+	override TStatus Update(TCustomCyberActor CustomCyberActor)
+	{
+		return BH_FAILURE;
+	}
+}

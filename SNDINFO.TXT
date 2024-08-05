@@ -5,13 +5,12 @@
 // =============================================================================
 
 // -----------------------------------------------------------------------------
-// Artifacts.
-// -----------------------------------------------------------------------------
-
-Artifact/MResurrect                     "SOUNDS/MONSTRES.ogg"
-
-// -----------------------------------------------------------------------------
 // Weapons.
 // -----------------------------------------------------------------------------
 
 weapons/nfg                             "SOUNDS/DSNFGPLA.ogg"
+weapons/lg                              "SOUNDS/WLGF.ogg"
+weapons/plc                             "SOUNDS/WPLCF.ogg"
+weapons/plccharging                     "SOUNDS/WPLCC.ogg"
+weapons/splc                            "SOUNDS/WSPLCF.ogg"
+weapons/splccharging                    "SOUNDS/WSPLCC.ogg"

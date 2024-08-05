@@ -1,0 +1,27 @@
+// =============================================================================
+//
+// CyberRifle
+//
+// =============================================================================
+
+Model CyberRifle
+{
+	Path    "MODELS/CyberRifle"
+	Model 0 "CyberRifle.iqm"
+	Skin  0 "BaseTexture.png"
+	Scale 1.0 1.0 1.0
+	USEACTORROLL // model would follow actors roll
+	USEACTORPITCH // model would follow actors pitch
+	ROTATING
+	FrameIndex NADA A 0 0
+}
+
+Model CyberRifle
+{
+	Path     "MODELS/CyberRifle"
+	Model  0 "CyberRifle.iqm"
+	Skin   0 "BaseTexture.png"
+	Offset 0 0 -24
+	Scale  -1 1 1
+	FrameIndex PLCG A 0 0
+}

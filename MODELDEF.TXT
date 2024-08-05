@@ -4,20 +4,10 @@
 //
 // =============================================================================
 
-//==============================================================================
-//
-// Shield Lightning
-//
-//==============================================================================
+// -----------------------------------------------------------------------------
+// Items, weapons, armors
+// -----------------------------------------------------------------------------
 
-Model ShieldLightning
-{
-	Path            "MODELS/Shield"
-	Model 0         "Beam.md3"
-	SurfaceSkin 0 0 "Beam.png"
-	AngleOffset 0
-	PitchOffset 0
-	Scale 1.0 1.0 1.2
-	USEACTORPITCH
-	FrameIndex BEAM A 0 0
-}
+#include "MODELDEFS/LightningGun.txt"
+#include "MODELDEFS/CyberRifle.txt"
+#include "MODELDEFS/PlasmaLaserCannon.txt"

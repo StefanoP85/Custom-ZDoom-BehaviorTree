@@ -1,0 +1,632 @@
+//==============================================================================
+//
+// Cyber Weapons.
+//
+//==============================================================================
+
+//------------------------------------------------------------------------------
+// Ammo.
+//------------------------------------------------------------------------------
+
+class CyberBattery : Ammo
+{
+	default
+	{
+		Inventory.Amount 20;
+		Inventory.Icon "BATTA0";
+		Inventory.MaxAmount 400;
+		Inventory.PickupMessage "You picked up a small cyber battery";
+		Inventory.PickupSound "misc/pickup";
+		Ammo.BackpackAmount 20;
+		Ammo.BackpackMaxAmount 800;
+	}
+	states
+	{
+		Spawn:
+			BATT A -1;
+			loop;
+	}
+}
+class CyberBatteryPack : CyberBattery
+{
+	default
+	{
+		Inventory.Amount 100;
+		Inventory.PickupMessage "You picked up a large cyber battery";
+	}
+	states
+	{
+		Spawn:
+			BATP A -1;
+			loop;
+	}
+}
+
+//------------------------------------------------------------------------------
+// Lightning Gun.
+//------------------------------------------------------------------------------
+
+class LightningGunProjectile : KAI_BaseProjectile
+{
+	Vector3 SpawnPos;
+	override void PostBeginPlay()
+	{
+		super.PostBeginPlay();
+		SpawnPos = Pos;
+	}
+	void DrawLightningSegment(Vector3 From, Vector3 To, double Density = 8, double Size = 10, double PosOfs = 2, bool SpawnSpark = true)
+	{
+		Vector3 Diff = Level.Vec3Diff(From, To);
+		Vector3 Dir = Diff.Unit();
+		int Steps = Floor(Diff.Length() / Density);
+		PosOfs = Abs(PosOfs);
+		FSpawnParticleParams SpawnParticleParams;
+		SpawnParticleParams.Color1 = 0xFFCCCCFF;
+		SpawnParticleParams.Flags = SPF_FULLBRIGHT | SPF_REPLACE;
+		SpawnParticleParams.LifeTime = 2;
+		SpawnParticleParams.Size = Size;
+		SpawnParticleParams.StartAlpha = 1;
+		SpawnParticleParams.Style = STYLE_Add;
+		SpawnParticleParams.Vel = Target.Vel;
+		Vector3 PartPos = From;
+		for (int I = 0; I <= Steps; I++)
+		{
+			SpawnParticleParams.Pos = PartPos;
+			if (PosOfs > 0)
+				SpawnParticleParams.Pos += (FRandom[LightningGunProjectile](-PosOfs, PosOfs), FRandom[LightningGunProjectile](PosOfs, PosOfs), FRandom[LightningGunProjectile](PosOfs, PosOfs));
+			Level.SpawnParticle(SpawnParticleParams);
+			PartPos += Dir * Density;
+		}
+		if (!SpawnSpark)
+			return;
+		SpawnParticleParams.Size = Size * 0.3;
+		SpawnParticleParams.LifeTime = 4;
+		SpawnParticleParams.SizeStep = -(SpawnParticleParams.Size / SpawnParticleParams.LifeTime);
+		SpawnParticleParams.Pos = To;
+		SpawnParticleParams.Accel.Z = -0.5;
+		for (int I = 5; I > 0; I--)
+		{
+			SpawnParticleParams.Vel.X = FRandom[LightningPart](-3, 3);
+			SpawnParticleParams.Vel.Y = FRandom[LightningPart](-3, 3);
+			SpawnParticleParams.Vel.Z = FRandom[LightningPart](2, 6);
+			SpawnParticleParams.Accel.XY = -(SpawnParticleParams.Vel.XY / SpawnParticleParams.LifeTime);
+			Level.SpawnParticle(SpawnParticleParams);
+		}
+	}
+	void DrawLightning()
+	{
+		Vector3 From = SpawnPos;
+		Vector3 To = Self.Pos;
+		Vector3 Diff = Level.Vec3Diff(From, To);
+		Vector3 Dir = Diff.Unit();
+		double Dist = Diff.Length();
+		double NodeDist = Clamp(Dist / 10, Min(8, Dist), Min(80, Dist));
+		int Steps = NodeDist < Dist ? Floor(Dist / NodeDist) : 1;
+		double PosOfs = NodeDist / 4.0;
+		Array<double> LitPosX;
+		Array<double> LitPosY;
+		Array<double> LitPosZ;
+		Vector3 PartPos = From;
+		Vector3 Node;
+		for (int I = 1; I <= Steps; I++)
+		{
+			PartPos += Dir * NodeDist;
+			Node = PartPos;
+			if (I < Steps)
+				Node += (FRandom[LightningGunProjectile](-PosOfs, PosOfs), FRandom[LightningGunProjectile](-PosOfs, PosOfs), FRandom[LightningGunProjectile](-PosOfs, PosOfs));
+			LitPosX.Push(Node.X);
+			LitPosY.Push(Node.Y);
+			LitPosZ.Push(Node.Z);
+		}
+		Steps = Min(LitPosX.Size(), LitPosY.Size(), LitPosZ.Size());
+		for (int I = 0; I < Steps; I++)
+		{
+			Node.X = LitPosX[I];
+			Node.Y = LitPosY[I];
+			Node.Z = LitPosZ[I];
+			DrawLightningSegment(From, Node, 1, 4, 0, I < 4);
+			From = Node;
+		}
+	}
+	default
+	{
+		DamageFunction (10);
+		Height 4;
+		Radius 4;
+		Speed 64;
+		SeeSound "weapons/lg";
+	}
+	states
+	{
+		Spawn:
+			BAL6 ABAB 2 Bright NoDelay DrawLightning();
+			stop;
+	}
+}
+class LightningGun : DoomWeapon
+{
+	//$Category Weapons
+	//$Title Lightning gun
+	default
+	{
+		Inventory.Icon "ICONLGUN";
+		Inventory.PickupMessage "You got the Lightning Gun!";
+		Weapon.AmmoGive 40;
+		Weapon.AmmoType "CyberBattery";
+		Weapon.AmmoUse 1;
+		Weapon.SelectionOrder 4444;
+		Weapon.SlotNumber 8;
+		Weapon.SlotPriority 0;
+	}
+	states
+	{
+		Spawn:
+			TNT1 A 0;
+			goto Idle;
+		Idle:
+			NADA A -1;
+			wait;
+		Ready:
+			PLCG A 1 A_WeaponReady();
+			wait;
+		Deselect:
+			PLCG A 1 A_Lower(12);
+			loop;
+		Select:
+			PLCG A 1 A_Raise(12);
+			loop;
+		Fire:
+			PLCG A 4 A_FireProjectile("LightningGunProjectile");
+			PLCG A 4 A_ReFire();
+			goto Ready;
+	}
+}
+
+//------------------------------------------------------------------------------
+// Cyber Rifle.
+//------------------------------------------------------------------------------
+
+class CyberRifleProjectile : KAI_BaseProjectile
+{
+	int CalculateDamage()
+	{
+		int Age = GetAge();
+		int Result = (32 + Random(0, 8) * 4) >> (Age >> 4);
+		return Result;
+	}
+	default
+	{
+		DamageFunction (CalculateDamage());
+		Height 4;
+		Radius 4;
+		Speed 64;
+		SeeSound "weapons/lg";
+		DeathSound "weapons/plasmax";
+	}
+	states
+	{
+		Spawn:
+			BAL5 ABABABAB 4 Bright;
+			stop;
+		Death:
+			APBX ABCDE 5 Bright;
+			stop;
+	}
+}
+class CyberRifle : DoomWeapon
+{
+	//$Category Weapons
+	//$Title CyberRifle
+	default
+	{
+		Inventory.Icon "ICONCRIF";
+		Inventory.PickupMessage "You got the Cyber Rifle!";
+		Weapon.AmmoGive 40;
+		Weapon.AmmoType "CyberBattery";
+		Weapon.AmmoUse 1;
+		Weapon.SelectionOrder 444;
+		Weapon.SlotNumber 8;
+		Weapon.SlotPriority 1;
+	}
+	states
+	{
+		Spawn:
+			TNT1 A 0;
+			goto Idle;
+		Idle:
+			TNT1 A -1;
+			wait;
+		Ready:
+			PLCG A 1 A_WeaponReady();
+			wait;
+		Deselect:
+			PLCG A 1 A_Lower(12);
+			loop;
+		Select:
+			PLCG A 1 A_Raise(12);
+			loop;
+		Fire:
+			PLCG A 4 A_FireProjectile("CyberRifleProjectile");
+			PLCG A 4 A_ReFire();
+			goto Ready;
+	}
+}
+
+//------------------------------------------------------------------------------
+// Plasma Laser Cannon.
+//------------------------------------------------------------------------------
+
+class PlasmaLaserCannonProjectile : KAI_BaseProjectile
+{
+	int ChargedCount;
+	int CalculateDamage()
+	{
+		if (ChargedCount)
+			return 50 * ChargedCount;
+		return 32 + Random(0, 8) * 4;
+	}
+	void SpawnTrail()
+	{
+		FSpawnParticleParams SpawnParticleParams;
+		SpawnParticleParams.Color1 = 0xFFFFFFA0;
+		SpawnParticleParams.Flags = SPF_FULLBRIGHT | SPF_REPLACE;
+		SpawnParticleParams.LifeTime = 4;
+		SpawnParticleParams.Size = Clamp(ChargedCount, 1, 16);
+		SpawnParticleParams.StartAlpha = 1;
+		SpawnParticleParams.Style = STYLE_Add;
+		SpawnParticleParams.Vel = Target.Vel / 2;
+		Vector3 ParticlePos = Pos;
+		for (int I = 0; I <= 15; I++)
+		{
+			SpawnParticleParams.Pos = ParticlePos;
+			Level.SpawnParticle(SpawnParticleParams);
+			ParticlePos -= Vel / 2;
+		}
+	}
+	default
+	{
+		DamageFunction (CalculateDamage());
+		Height 4;
+		Radius 4;
+		Speed 64;
+	}
+	states
+	{
+		Spawn:
+			APBX EEEEEEEEEEEEEEEE 2 Bright NoDelay SpawnTrail();
+			stop;
+	}
+}
+class PlasmaLaserCannon : DoomWeapon
+{
+	//$Category Weapons
+	//$Title PlasmaLaserCannon
+	int ChargedCount;
+	virtual int MaxCharge()
+	{
+		return 12;
+	}
+	action void Charging()
+	{
+		PlasmaLaserCannon PlayerWeapon = PlasmaLaserCannon(Player.ReadyWeapon);
+		PlayerWeapon.ChargedCount = 0;
+		A_StartSound(PlayerWeapon.FChargingSound, CHAN_WEAPON);
+	}
+	action void DoBlasterFire()
+	{
+		bool Accurate = !Player.ReFire;
+		double Angle = 0;
+		if (!Accurate)
+			Angle += Random2[PlasmaLaserCannon]() * (1.125 / 256);
+		PlasmaLaserCannon PlayerWeapon = PlasmaLaserCannon(Player.ReadyWeapon);
+		A_StartSound(PlayerWeapon.FAttackSound, CHAN_WEAPON);
+		A_FireProjectile("PlasmaLaserCannonProjectile", Angle, False);
+	}
+	action void DoChargedFire()
+	{
+		PlasmaLaserCannon PlayerWeapon = PlasmaLaserCannon(Player.ReadyWeapon);
+		A_StartSound(PlayerWeapon.FAttackSound, CHAN_WEAPON);
+		if (!PlayerWeapon.ChargedCount)
+			return;
+		PlasmaLaserCannonProjectile Projectile = PlasmaLaserCannonProjectile(A_FireProjectile("PlasmaLaserCannonProjectile", 0, False));
+		if (Projectile)
+			Projectile.ChargedCount = PlayerWeapon.ChargedCount;
+	}
+	action void FireBlaster()
+	{
+		if (Player == null)
+			return;
+		Weapon PlayerWeapon = Player.ReadyWeapon;
+		if (PlayerWeapon.DepleteAmmo(false, true, 1))
+			DoBlasterFire();
+	}
+	action void FireCharged()
+	{
+		if (Player == null)
+			return;
+		DoChargedFire();
+	}
+	action void HoldCharging()
+	{
+		if (Player == null)
+			return;
+		PlasmaLaserCannon PlayerWeapon = PlasmaLaserCannon(Player.ReadyWeapon);
+		if (PlayerWeapon.ChargedCount < PlayerWeapon.MaxCharge())
+			if (PlayerWeapon.DepleteAmmo(false, true, 1))
+				PlayerWeapon.ChargedCount++;
+	}
+	Sound FAttackSound;
+	Sound FChargingSound;
+	Property AttackSound : FAttackSound;
+	Property ChargingSound : FChargingSound;
+	default
+	{
+		Inventory.Icon "ICONPLC";
+		Inventory.PickupMessage "You got the Plasma Laser Cannon!";
+		Weapon.AmmoGive 40;
+		Weapon.AmmoType "CyberBattery";
+		Weapon.AmmoUse 1;
+		Weapon.SelectionOrder 222;
+		Weapon.SlotNumber 9;
+		Weapon.SlotPriority 1;
+		PlasmaLaserCannon.AttackSound "weapons/plc";
+		PlasmaLaserCannon.ChargingSound "weapons/plccharging";
+	}
+	states
+	{
+		Spawn:
+			PLCL A -1;
+			stop;
+		Ready:
+			PLCG A 1 A_WeaponReady();
+			loop;
+		Deselect:
+			PLCG A 1 A_Lower(12);
+			loop;
+		Select:
+			PLCG A 1 A_Raise(12);
+			loop;
+		Fire:
+			PLCG A 4 FireBlaster();
+			PLCG A 0 A_ReFire("Fire.First");
+			goto Ready;
+		Fire.First:
+			PLCG C 4 FireBlaster();
+			PLCG C 0 A_ReFire("Fire");
+			goto Ready;
+		AltFire:
+			PLCG A 4 Charging();
+			PLCG A 0 A_ReFire("AltHold");
+			goto AltBlaster;
+		AltHold:
+			PLCG A 4 HoldCharging();
+			PLCG A 0 A_ReFire("AltHold.First");
+			goto AltBlaster;
+		AltHold.First:
+			PLCG B 4 HoldCharging();
+			PLCG A 0 A_ReFire("AltHold.Second");
+			goto AltBlaster;
+		AltHold.Second:
+			PLCG C 4 HoldCharging();
+			PLCG A 0 A_ReFire("AltHold.Third");
+			goto AltBlaster;
+		AltHold.Third:
+			PLCG D 4 HoldCharging();
+			PLCG A 0 A_ReFire("AltHold");
+			goto AltBlaster;
+		AltBlaster:
+			PLCG A 10 FireCharged();
+			goto Ready;
+	}
+}
+class SuperPlasmaLaserCannon : PlasmaLaserCannon
+{
+	//$Category Weapons
+	//$Title Super PlasmaLaserCannon
+	override int MaxCharge()
+	{
+		return 80;
+	}
+	action void DoScatterFire()
+	{
+		double Angle = Random2[PlasmaLaserCannon]() * (1.125 / 256);
+		PlasmaLaserCannon PlayerWeapon = PlasmaLaserCannon(Player.ReadyWeapon);
+		A_FireProjectile("PlasmaLaserCannonProjectile", Angle, False);
+	}
+	action void FireScatter()
+	{
+		if (Player == null)
+			return;
+		SuperPlasmaLaserCannon PlayerWeapon = SuperPlasmaLaserCannon(Player.ReadyWeapon);
+		A_StartSound(PlayerWeapon.FAttackSound, CHAN_WEAPON);
+		if (PlayerWeapon.DepleteAmmo(PlayerWeapon.bAltFire, true, 20, true))
+			for (int I = 0; I < 24; I++)
+				DoScatterFire();
+	}
+	default
+	{
+		Inventory.Icon "ICONSPLC";
+		Inventory.PickupMessage "You got the Super Plasma Laser Cannon!";
+		Weapon.AmmoGive 40;
+		Weapon.AmmoType "CyberBattery";
+		Weapon.AmmoUse 1;
+		Weapon.SelectionOrder 333;
+		Weapon.SlotNumber 9;
+		Weapon.SlotPriority 0;
+		PlasmaLaserCannon.AttackSound "weapons/splc";
+		PlasmaLaserCannon.ChargingSound "weapons/splccharging";
+	}
+	states
+	{
+		Spawn:
+			TNT1 A 0;
+			goto Idle;
+		Idle:
+			NADA A 20;
+			NBE0 ABCDEFGHIJKLMNOPQRSTUVWXYZ 1;
+			NBE1 ABCDEFGHIJKLMNOPQRSTUVWXYZ 1;
+			NBE2 ABCDEFGHIJKLMNOPQRSTUVWXYZ 1;
+			NBE3 ABCDEFGHIJKLMNOPQRSTUVWXYZ 1;
+			NBE4 ABCDEFG 1;
+			NID0 ABCDEFGHIJKLMNOPQRSTUVWXYZ 1;
+			NID1 ABCD 1;
+			NEN0 ABCDEFGHIJKLMNOPQRSTUVWXYZ 1;
+			NEN1 ABCDEFGHIJKLMNOPQRSTUVWXYZ 1;
+			NEN2 ABCDEFGHIJKLMNOPQRSTUVWXYZ 1;
+			NEN3 ABCDEFGHIJKLMNOPQRSTUVWXYZ 1;
+			NEN4 ABCDEFGHIJKLMNOP 1;
+			loop;
+		Ready:
+			TNT1 A 0;
+			goto Ready.Real;
+		Ready.Real:
+			PLCG A 1 A_WeaponReady();
+			loop;
+		Deselect:
+			TNT1 A 1 A_Lower(12);
+			loop;
+		Select:
+			TNT1 A 1 A_Raise(12);
+			loop;
+		Fire:
+			PLCG A 8 FireScatter();
+			goto Ready;
+		AltFire:
+			#### # 0 Charging();
+			WBE0 ABCDEFGHIJKLMNOPQRSTUVWXYZ 1;
+			WBE1 ABCDEFGHIJKLMNOPQRSTUVWXYZ 1;
+			WBE2 ABCDEFGHIJKLMNOPQRSTUVWXYZ 1;
+			WBE3 ABCDEFGHIJKLMNOPQRSTUVWXYZ 1;
+			WBE4 ABCDEFG 1;
+			#### # 0 A_ReFire("AltHold");
+			goto AltFinish;
+		AltHold:
+			WID0 A 1 HoldCharging();
+			#### # 0 A_ReFire("AltHold.01");
+			goto AltFinish;
+		AltHold.01:
+			WID0 B 1 HoldCharging();
+			#### # 0 A_ReFire("AltHold.02");
+			goto AltFinish;
+		AltHold.02:
+			WID0 C 1 HoldCharging();
+			#### # 0 A_ReFire("AltHold.03");
+			goto AltFinish;
+		AltHold.03:
+			WID0 D 1 HoldCharging();
+			#### # 0 A_ReFire("AltHold.04");
+			goto AltFinish;
+		AltHold.04:
+			WID0 E 1 HoldCharging();
+			#### # 0 A_ReFire("AltHold.05");
+			goto AltFinish;
+		AltHold.05:
+			WID0 F 1 HoldCharging();
+			#### # 0 A_ReFire("AltHold.06");
+			goto AltFinish;
+		AltHold.06:
+			WID0 G 1 HoldCharging();
+			#### # 0 A_ReFire("AltHold.07");
+			goto AltFinish;
+		AltHold.07:
+			WID0 H 1 HoldCharging();
+			#### # 0 A_ReFire("AltHold.08");
+			goto AltFinish;
+		AltHold.08:
+			WID0 I 1 HoldCharging();
+			#### # 0 A_ReFire("AltHold.09");
+			goto AltFinish;
+		AltHold.09:
+			WID0 J 1 HoldCharging();
+			#### # 0 A_ReFire("AltHold.10");
+			goto AltFinish;
+		AltHold.10:
+			WID0 K 1 HoldCharging();
+			#### # 0 A_ReFire("AltHold.11");
+			goto AltFinish;
+		AltHold.11:
+			WID0 L 1 HoldCharging();
+			#### # 0 A_ReFire("AltHold.12");
+			goto AltFinish;
+		AltHold.12:
+			WID0 M 1 HoldCharging();
+			#### # 0 A_ReFire("AltHold.13");
+			goto AltFinish;
+		AltHold.13:
+			WID0 N 1 HoldCharging();
+			#### # 0 A_ReFire("AltHold.14");
+			goto AltFinish;
+		AltHold.14:
+			WID0 O 1 HoldCharging();
+			#### # 0 A_ReFire("AltHold.15");
+			goto AltFinish;
+		AltHold.15:
+			WID0 P 1 HoldCharging();
+			#### # 0 A_ReFire("AltHold.16");
+			goto AltFinish;
+		AltHold.16:
+			WID0 Q 1 HoldCharging();
+			#### # 0 A_ReFire("AltHold.17");
+			goto AltFinish;
+		AltHold.17:
+			WID0 R 1 HoldCharging();
+			#### # 0 A_ReFire("AltHold.18");
+			goto AltFinish;
+		AltHold.18:
+			WID0 S 1 HoldCharging();
+			#### # 0 A_ReFire("AltHold.19");
+			goto AltFinish;
+		AltHold.19:
+			WID0 T 1 HoldCharging();
+			#### # 0 A_ReFire("AltHold.20");
+			goto AltFinish;
+		AltHold.20:
+			WID0 U 1 HoldCharging();
+			#### # 0 A_ReFire("AltHold.21");
+			goto AltFinish;
+		AltHold.21:
+			WID0 V 1 HoldCharging();
+			#### # 0 A_ReFire("AltHold.22");
+			goto AltFinish;
+		AltHold.22:
+			WID0 W 1 HoldCharging();
+			#### # 0 A_ReFire("AltHold.23");
+			goto AltFinish;
+		AltHold.23:
+			WID0 X 1 HoldCharging();
+			#### # 0 A_ReFire("AltHold.24");
+			goto AltFinish;
+		AltHold.24:
+			WID0 Y 1 HoldCharging();
+			#### # 0 A_ReFire("AltHold.25");
+			goto AltFinish;
+		AltHold.25:
+			WID0 Z 1 HoldCharging();
+			#### # 0 A_ReFire("AltHold.26");
+			goto AltFinish;
+		AltHold.26:
+			WID1 A 1 HoldCharging();
+			#### # 0 A_ReFire("AltHold.27");
+			goto AltFinish;
+		AltHold.27:
+			WID1 B 1 HoldCharging();
+			#### # 0 A_ReFire("AltHold.28");
+			goto AltFinish;
+		AltHold.28:
+			WID1 C 1 HoldCharging();
+			#### # 0 A_ReFire("AltHold.29");
+			goto AltFinish;
+		AltHold.29:
+			WID1 D 1 HoldCharging();
+			#### # 0 A_ReFire("AltHold");
+			goto AltFinish;
+		AltFinish:
+			WEN0 A 1 FireCharged();
+			WEN0 ABCDEFGHIJKLMNOPQRSTUVWXYZ 1;
+			WEN1 ABCDEFGHIJKLMNOPQRSTUVWXYZ 1;
+			WEN2 ABCDEFGHIJKLMNOPQRSTUVWXYZ 1;
+			WEN3 ABCDEFGHIJKLMNOPQRSTUVWXYZ 1;
+			WEN4 ABCDEFGHIJKLMNOP 1;
+			goto Ready;
+	}
+}

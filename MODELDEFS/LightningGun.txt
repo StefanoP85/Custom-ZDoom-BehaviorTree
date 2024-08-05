@@ -1,0 +1,27 @@
+// =============================================================================
+//
+// LightningGun
+//
+// =============================================================================
+
+Model LightningGun
+{
+	Path    "MODELS/LightningGun"
+	Model 0 "LightningGun.iqm"
+	Skin  0 "LightningGun.png"
+	Scale 1.0 1.0 1.0
+	USEACTORROLL // model would follow actors roll
+	USEACTORPITCH // model would follow actors pitch
+	ROTATING
+	FrameIndex NADA A 0 0
+}
+
+Model LightningGun
+{
+	Path     "MODELS/LightningGun"
+	Model  0 "LightningGun.iqm"
+	Skin   0 "LightningGun.png"
+	Offset 0 0 -32
+	Scale  -1 1 1
+	FrameIndex PLCG A 0 0
+}

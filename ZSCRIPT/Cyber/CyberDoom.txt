@@ -1,0 +1,745 @@
+//==============================================================================
+//
+// Cyber Doom.
+//
+//==============================================================================
+
+// -----------------------------------------------------------------------------
+// AI nodes.
+// -----------------------------------------------------------------------------
+
+// Node CombatSTD: check if fit for a missile attack.
+class CyberDoom_AINode_CombatSTD : TUtilityBehavior
+{
+	static CyberDoom_AINode_CombatSTD Create()
+	{
+		CyberDoom_AINode_CombatSTD Result = New('CyberDoom_AINode_CombatSTD');
+		return Result;
+	}
+	override double CalculateUtility(TCustomCyberActor CustomCyberActor)
+	{
+		return 0.5;
+	}
+	override TStatus Update(TCustomCyberActor CustomCyberActor)
+	{
+		if (CustomCyberActor.IsInAttackState())
+		{
+			if (CustomCyberActor.WeaponCooldown)
+				CustomCyberActor.WeaponCooldown--;
+			if (CustomCyberActor.WeaponCooldown == 0)
+			{
+				CustomCyberActor.B_Missile('SM_Bullet');
+				CustomCyberActor.WeaponCooldown = 4;
+			}
+			return BH_RUNNING;
+		}
+		if (CustomCyberActor.CheckMissileRange())
+		{
+			CustomCyberActor.UpdateStateLabel("Missile", true);
+			CustomCyberActor.WeaponCooldown = 2;
+		}
+		return BH_SUCCESS;
+	}
+}
+
+// Node CombatPLC: check if fit for a missile attack.
+class CyberDoom_AINode_CombatPLC : TUtilityBehavior
+{
+	double MaxDistance; // Actually is squared for performance reasons.
+	static CyberDoom_AINode_CombatPLC Create(double MaxDistance = 1024)
+	{
+		CyberDoom_AINode_CombatPLC Result = New('CyberDoom_AINode_CombatPLC');
+		Result.MaxDistance = MaxDistance ** 2;
+		return Result;
+	}
+	override double CalculateUtility(TCustomCyberActor CustomCyberActor)
+	{
+		if (CustomCyberActor.Distance2DSquared(CustomCyberActor.Target) <= MaxDistance)
+			return 0.7;
+		return 0;
+	}
+	override TStatus Update(TCustomCyberActor CustomCyberActor)
+	{
+		if (CustomCyberActor.IsInAttackState())
+		{
+			if (CustomCyberActor.WeaponCooldown)
+				CustomCyberActor.WeaponCooldown--;
+			if (CustomCyberActor.WeaponCooldown == 0)
+			{
+				CustomCyberActor.A_StartSound("weapons/plc", CHAN_WEAPON);
+				CustomCyberActor.B_Missile('PlasmaLaserCannonProjectile');
+				CustomCyberActor.WeaponCooldown = 4;
+			}
+			return BH_RUNNING;
+		}
+		if (CustomCyberActor.CheckMissileRange())
+		{
+			CustomCyberActor.UpdateStateLabel("Missile", true);
+			CustomCyberActor.WeaponCooldown = 2;
+		}
+		return BH_SUCCESS;
+	}
+}
+
+// -----------------------------------------------------------------------------
+// CyberDoom.
+// -----------------------------------------------------------------------------
+
+class CyberDoom : TCyberBasic abstract
+{
+	override void Initialize()
+	{
+		super.Initialize();
+		//A_GiveInventory('EnergyShield1', 1);
+	}
+	default
+	{
+		CameraHeight 42;
+		Health 100;
+		Height 56;
+		Mass 100;
+		PainChance 30;
+		Radius 20;
+		Speed 16;
+		Tag "Cyber Doom";
+		KAI_Actor.AggressionMultiplier 1.0;
+		KAI_Actor.ThreatLevel THREAT_DANGEROUS;
+		KAI_Actor.ThreatLevelThreshold THREAT_VERYDANGEROUS;
+		ActiveSound "CyberDoom/Active";
+		AttackSound "CyberDoom/Attack";
+		DeathSound "CyberDoom/Death";
+		PainSound "CyberDoom/Pain";
+		SeeSound "CyberDoom/Sight";
+	}
+}
+
+class CyberDoomGreen : CyberDoom
+{
+	override void InitBehavior()
+	{
+		MeleeState = null;
+		MissileState = FindState("Missile", true);
+		AttackStates.Push(MissileState);
+		TBehaviorTreeManager BehaviorTreeManager = TBehaviorTreeManager.GetInstance();
+		Behavior = BehaviorTreeManager.GetBehavior(self.GetClass());
+		if (!Behavior)
+		{
+			Behavior = TSequence.Create()
+				.AddBehavior(TCyberBasic_AINode_TimeFreeze.Create())
+				.AddBehavior(TCyberBasic_AINode_BasicLife.Create())
+				.AddBehavior(
+					TSelector.Create() // Strategy selector
+						.AddBehavior(TCyberBasic_AINode_SearchHelp.Create())
+						.AddBehavior(TCyberBasic_AINode_Goal.Create())
+						.AddBehavior(TCyberBasic_AINode_Fight.Create())
+						.AddBehavior(TCyberBasic_AINode_Gesture.Create())
+						.AddBehavior(TCyberBasic_AINode_Rest.Create())
+				)
+				.AddBehavior(
+					TSequence.Create()
+					.AddBehavior(TCyberBasic_AINode_ChaseMode.Create(8, 16))
+					.AddBehavior(
+						TSelector.Create() // Tactical selector
+							.AddBehavior(TCyberBasic_AINode_Jump.Create())
+							.AddBehavior(TCyberBasic_AINode_CoverZone.Create())
+							.AddBehavior(TCyberBasic_AINode_NextMove.Create())
+					)
+					.AddBehavior(TCyberBasic_AINode_Move.Create())
+				)
+				.AddBehavior(
+					TSequence.Create()
+					.AddBehavior(TCyberBasic_AINode_BasicCombat.Create())
+					.AddBehavior(TCyberBasic_AINode_CombatMissile.Create())
+				)
+			;
+			BehaviorTreeManager.AddBehavior(self.GetClass(), Behavior);
+		}
+	}
+	default
+	{
+		DropItem "Cell", 192;
+		DropItem "CellPack", 32;
+		DropItem "PlasmaGun", 32;
+		//DropItem "CyberArmor", 11;
+		Tag "Cyber Doom Green";
+	}
+	states
+	{
+		Spawn:
+			TNT1 A 0;
+			goto Think;
+		See:
+			TNT1 A 0;
+			goto Think;
+		Missile:
+			PLAY E 0 A_Jump(32, "Think");
+			PLAY E 7 A_FaceTarget();
+			PLAY F 1 bright B_Missile('ArachnotronPlasma');
+			PLAY F 0 bright A_MonsterRefire(0, "Think");
+			goto Missile;
+		Pain:
+			TNT1 A 0 A_Pain();
+			goto Think;
+		Death:
+			PLAY H 10 B_Die();
+			PLAY IJKLM 10;
+			PLAY N -1;
+			stop;
+		XDeath:
+			PLAY O 5 B_Die();
+			PLAY PQRSTUV 5;
+			PLAY W -1;
+			stop;
+		Raise:
+			PLAY N 10 Initialize();
+			PLAY MKJIH 10;
+			goto Think;
+		Think:
+			TNT1 A 0 B_Think();
+			loop; // Never, it is safe!
+		Idle:
+			PLAY AB 10;
+			goto Think;
+		Jump:
+			PLAY A 5 B_JumpBegin();
+			PLAY B 5;
+			PLAY C 5;
+			PLAY D 5 B_JumpEnd();
+			goto Think;
+		Run:
+			PLAY ABCD 2;
+			goto Think;
+		Walk:
+			PLAY ABCD 4;
+			goto Think;
+	}
+}
+
+class CyberDoomRed : CyberDoom
+{
+	override void InitBehavior()
+	{
+		MeleeState = null;
+		MissileState = FindState("Missile", true);
+		AttackStates.Push(MissileState);
+		TBehaviorTreeManager BehaviorTreeManager = TBehaviorTreeManager.GetInstance();
+		Behavior = BehaviorTreeManager.GetBehavior(self.GetClass());
+		if (!Behavior)
+		{
+			Behavior = TSequence.Create()
+				.AddBehavior(TCyberBasic_AINode_TimeFreeze.Create())
+				.AddBehavior(TCyberBasic_AINode_BasicLife.Create())
+				.AddBehavior(
+					TSelector.Create() // Strategy selector
+						.AddBehavior(TCyberBasic_AINode_SearchHelp.Create())
+						.AddBehavior(TCyberBasic_AINode_Goal.Create())
+						.AddBehavior(TCyberBasic_AINode_Fight.Create())
+						.AddBehavior(TCyberBasic_AINode_Gesture.Create())
+						.AddBehavior(TCyberBasic_AINode_Rest.Create())
+				)
+				.AddBehavior(
+					TSequence.Create()
+					.AddBehavior(TCyberBasic_AINode_ChaseMode.Create(8, 16))
+					.AddBehavior(
+						TSelector.Create() // Tactical selector
+							.AddBehavior(TCyberBasic_AINode_Jump.Create())
+							.AddBehavior(TCyberBasic_AINode_CoverZone.Create())
+							.AddBehavior(TCyberBasic_AINode_NextMove.Create())
+					)
+					.AddBehavior(TCyberBasic_AINode_Move.Create())
+				)
+				.AddBehavior(
+					TSequence.Create()
+					.AddBehavior(TCyberBasic_AINode_BasicCombat.Create())
+					.AddBehavior(TCyberBasic_AINode_CombatMissile.Create())
+				)
+			;
+			BehaviorTreeManager.AddBehavior(self.GetClass(), Behavior);
+		}
+	}
+	default
+	{
+		DropItem "Cell", 192;
+		DropItem "CellPack", 32;
+		DropItem "PlasmaRifle", 32;
+		//DropItem "CyberArmor", 11;
+		Tag "Cyber Doom Red";
+		Translation "Marine_Red";
+	}
+	states
+	{
+		Spawn:
+			TNT1 A 0;
+			goto Think;
+		See:
+			TNT1 A 0;
+			goto Think;
+		Missile:
+			PLAY E 0 A_Jump(32, "Think");
+			PLAY E 2 A_FaceTarget();
+			PLAY F 1 bright B_Missile('PlasmaBall');
+			PLAY F 0 bright A_MonsterRefire(0, "Think");
+			goto Missile;
+		Pain:
+			TNT1 A 0 A_Pain();
+			goto Think;
+		Death:
+			PLAY H 10 B_Die();
+			PLAY IJKLM 10;
+			PLAY N -1;
+			stop;
+		XDeath:
+			PLAY O 5 B_Die();
+			PLAY PQRSTUV 5;
+			PLAY W -1;
+			stop;
+		Raise:
+			PLAY N 10 Initialize();
+			PLAY MKJIH 10;
+			goto Think;
+		Think:
+			TNT1 A 0 B_Think();
+			loop; // Never, it is safe!
+		Idle:
+			PLAY AB 10;
+			goto Think;
+		Jump:
+			PLAY A 5 B_JumpBegin();
+			PLAY B 5;
+			PLAY C 5;
+			PLAY D 5 B_JumpEnd();
+			goto Think;
+		Run:
+			PLAY ABCD 2;
+			goto Think;
+		Walk:
+			PLAY ABCD 4;
+			goto Think;
+	}
+}
+
+class CyberDoomBlue : CyberDoom
+{
+	override void InitBehavior()
+	{
+		MeleeState = null;
+		MissileState = FindState("Missile", true);
+		AttackStates.Push(MissileState);
+		TBehaviorTreeManager BehaviorTreeManager = TBehaviorTreeManager.GetInstance();
+		Behavior = BehaviorTreeManager.GetBehavior(self.GetClass());
+		if (!Behavior)
+		{
+			Behavior = TSequence.Create()
+				.AddBehavior(TCyberBasic_AINode_TimeFreeze.Create())
+				.AddBehavior(TCyberBasic_AINode_BasicLife.Create())
+				.AddBehavior(
+					TSelector.Create() // Strategy selector
+						.AddBehavior(TCyberBasic_AINode_SearchHelp.Create())
+						.AddBehavior(TCyberBasic_AINode_Goal.Create())
+						.AddBehavior(TCyberBasic_AINode_Fight.Create())
+						.AddBehavior(TCyberBasic_AINode_Gesture.Create())
+						.AddBehavior(TCyberBasic_AINode_Rest.Create())
+				)
+				.AddBehavior(
+					TSequence.Create()
+					.AddBehavior(TCyberBasic_AINode_ChaseMode.Create(8, 16))
+					.AddBehavior(
+						TSelector.Create() // Tactical selector
+							.AddBehavior(TCyberBasic_AINode_Jump.Create())
+							.AddBehavior(TCyberBasic_AINode_CoverZone.Create())
+							.AddBehavior(TCyberBasic_AINode_NextMove.Create())
+					)
+					.AddBehavior(TCyberBasic_AINode_Move.Create())
+				)
+				.AddBehavior(
+					TSequence.Create()
+					.AddBehavior(TCyberBasic_AINode_BasicCombat.Create())
+					.AddBehavior(TCyberBasic_AINode_CombatMissile.Create())
+				)
+			;
+			BehaviorTreeManager.AddBehavior(self.GetClass(), Behavior);
+		}
+	}
+	default
+	{
+		DropItem "Cell", 192;
+		DropItem "CellPack", 32;
+		DropItem "NFG", 32;
+		//DropItem "CyberArmor", 11;
+		Tag "Cyber Doom Blue";
+		Translation "Marine_Blue";
+	}
+	states
+	{
+		Spawn:
+			TNT1 A 0;
+			goto Think;
+		See:
+			TNT1 A 0;
+			goto Think;
+		Missile:
+			PLAY E 0 A_Jump(32, "Think");
+			PLAY E 2 A_FaceTarget();
+			PLAY F 1 bright B_Missile('NFGPlasmaBall');
+			PLAY F 0 bright A_MonsterRefire(0, "Think");
+			goto Missile;
+		Pain:
+			TNT1 A 0 A_Pain();
+			goto Think;
+		Death:
+			PLAY H 10 B_Die();
+			PLAY IJKLM 10;
+			PLAY N -1;
+			stop;
+		XDeath:
+			PLAY O 5 B_Die();
+			PLAY PQRSTUV 5;
+			PLAY W -1;
+			stop;
+		Raise:
+			PLAY N 10 Initialize();
+			PLAY MKJIH 10;
+			goto Think;
+		Think:
+			TNT1 A 0 B_Think();
+			loop; // Never, it is safe!
+		Idle:
+			PLAY AB 10;
+			goto Think;
+		Jump:
+			PLAY A 5 B_JumpBegin();
+			PLAY B 5;
+			PLAY C 5;
+			PLAY D 5 B_JumpEnd();
+			goto Think;
+		Run:
+			PLAY ABCD 2;
+			goto Think;
+		Walk:
+			PLAY ABCD 4;
+			goto Think;
+	}
+}
+
+class CyberDoomGray : CyberDoom
+{
+	override void InitBehavior()
+	{
+		MeleeState = null;
+		MissileState = FindState("Missile", true);
+		AttackStates.Push(MissileState);
+		TBehaviorTreeManager BehaviorTreeManager = TBehaviorTreeManager.GetInstance();
+		Behavior = BehaviorTreeManager.GetBehavior(self.GetClass());
+		if (!Behavior)
+		{
+			Behavior = TSequence.Create()
+				.AddBehavior(TCyberBasic_AINode_TimeFreeze.Create())
+				.AddBehavior(TCyberBasic_AINode_BasicLife.Create())
+				.AddBehavior(
+					TSelector.Create() // Strategy selector
+						.AddBehavior(TCyberBasic_AINode_SearchHelp.Create())
+						.AddBehavior(TCyberBasic_AINode_RepairVehicle.Create())
+						.AddBehavior(TCyberBasic_AINode_Goal.Create())
+						.AddBehavior(TCyberBasic_AINode_Fight.Create())
+						.AddBehavior(TCyberBasic_AINode_Gesture.Create())
+						.AddBehavior(TCyberBasic_AINode_Rest.Create())
+				)
+				.AddBehavior(
+					TSequence.Create()
+					.AddBehavior(TCyberBasic_AINode_ChaseMode.Create(8, 16))
+					.AddBehavior(
+						TSelector.Create() // Tactical selector
+							.AddBehavior(TCyberBasic_AINode_Jump.Create())
+							.AddBehavior(TCyberBasic_AINode_CoverZone.Create())
+							.AddBehavior(TCyberBasic_AINode_NextMove.Create())
+					)
+					.AddBehavior(TCyberBasic_AINode_Move.Create())
+				)
+				.AddBehavior(
+					TSequence.Create()
+					.AddBehavior(TCyberBasic_AINode_BasicCombat.Create())
+					.AddBehavior(TCyberBasic_AINode_CombatMissile.Create())
+				)
+			;
+			BehaviorTreeManager.AddBehavior(self.GetClass(), Behavior);
+		}
+	}
+	default
+	{
+		DropItem "Clip", 192;
+		DropItem "ClipBox", 32;
+		DropItem "VanillaRifle", 32;
+		//DropItem "CyberArmor", 11;
+		Tag "Cyber Doom Gray";
+		Translation "Marine_Gray";
+	}
+	states
+	{
+		Spawn:
+			TNT1 A 0;
+			goto Think;
+		See:
+			TNT1 A 0;
+			goto Think;
+		Missile:
+			PLAY E 4 A_Jump(32, "Think");
+			PLAY F 4 bright B_Missile("SM_Bullet");
+			PLAY F 0 bright A_MonsterRefire(0, "Think");
+			goto Missile;
+		Pain:
+			TNT1 A 0 A_Pain();
+			goto Think;
+		Death:
+			PLAY H 10 B_Die();
+			PLAY IJKLM 10;
+			PLAY N -1;
+			stop;
+		XDeath:
+			PLAY O 5 B_Die();
+			PLAY PQRSTUV 5;
+			PLAY W -1;
+			stop;
+		Raise:
+			PLAY N 10 Initialize();
+			PLAY MKJIH 10;
+			goto Think;
+		Think:
+			TNT1 A 0 B_Think();
+			loop; // Never, it is safe!
+		Idle:
+			PLAY AB 10;
+			goto Think;
+		Jump:
+			PLAY A 5 B_JumpBegin();
+			PLAY B 5;
+			PLAY C 5;
+			PLAY D 5 B_JumpEnd();
+			goto Think;
+		RepairVehicle:
+			PLAY AB 6;
+			goto Think;
+		Run:
+			PLAY ABCD 2;
+			goto Think;
+		Walk:
+			PLAY ABCD 4;
+			goto Think;
+	}
+}
+
+class CyberDoomWhite : CyberDoom
+{
+	override void InitBehavior()
+	{
+		MeleeState = null;
+		MissileState = FindState("Missile", true);
+		AttackStates.Push(MissileState);
+		TBehaviorTreeManager BehaviorTreeManager = TBehaviorTreeManager.GetInstance();
+		Behavior = BehaviorTreeManager.GetBehavior(self.GetClass());
+		if (!Behavior)
+		{
+			Behavior = TSequence.Create()
+				.AddBehavior(TCyberBasic_AINode_TimeFreeze.Create())
+				.AddBehavior(TCyberBasic_AINode_BasicLife.Create())
+				.AddBehavior(
+					TSelector.Create() // Strategy selector
+						.AddBehavior(TCyberBasic_AINode_SearchHelp.Create())
+						.AddBehavior(TCyberBasic_AINode_GiveAid.Create())
+						.AddBehavior(TCyberBasic_AINode_Goal.Create())
+						.AddBehavior(TCyberBasic_AINode_Fight.Create())
+						.AddBehavior(TCyberBasic_AINode_Gesture.Create())
+						.AddBehavior(TCyberBasic_AINode_Rest.Create())
+				)
+				.AddBehavior(
+					TSequence.Create()
+					.AddBehavior(TCyberBasic_AINode_ChaseMode.Create(8, 16))
+					.AddBehavior(
+						TSelector.Create() // Tactical selector
+							.AddBehavior(TCyberBasic_AINode_Jump.Create())
+							.AddBehavior(TCyberBasic_AINode_CoverZone.Create())
+							.AddBehavior(TCyberBasic_AINode_NextMove.Create())
+					)
+					.AddBehavior(TCyberBasic_AINode_Move.Create())
+				)
+				.AddBehavior(
+					TSequence.Create()
+					.AddBehavior(TCyberBasic_AINode_BasicCombat.Create())
+					.AddBehavior(TCyberBasic_AINode_CombatMissile.Create())
+				)
+			;
+			BehaviorTreeManager.AddBehavior(self.GetClass(), Behavior);
+		}
+	}
+	default
+	{
+		DropItem "Clip", 192;
+		DropItem "ClipBox", 32;
+		DropItem "VanillaRifle", 32;
+		DropItem "Berserk", 32;
+		//DropItem "CyberArmor", 11;
+		Tag "Cyber Doom White (Medic)";
+		Translation "Marine_White";
+		+TCustomNavMeshActor.NavMeshMedic;
+	}
+	states
+	{
+		Spawn:
+			TNT1 A 0;
+			goto Think;
+		See:
+			TNT1 A 0;
+			goto Think;
+		Missile:
+			PLAY E 4 A_Jump(32, "Think");
+			PLAY F 4 bright B_Missile("SM_Bullet");
+			PLAY F 0 bright A_MonsterRefire(0, "Think");
+			goto Missile;
+		Pain:
+			TNT1 A 0 A_Pain();
+			goto Think;
+		Death:
+			PLAY H 10 B_Die();
+			PLAY IJKLM 10;
+			PLAY N -1;
+			stop;
+		XDeath:
+			PLAY O 5 B_Die();
+			PLAY PQRSTUV 5;
+			PLAY W -1;
+			stop;
+		Raise:
+			PLAY N 10 Initialize();
+			PLAY MKJIH 10;
+			goto Think;
+		Think:
+			TNT1 A 0 B_Think();
+			loop; // Never, it is safe!
+		Heal:
+			PLAY AB 10;
+			goto Think;
+		Idle:
+			PLAY AB 10;
+			goto Think;
+		Jump:
+			PLAY A 5 B_JumpBegin();
+			PLAY B 5;
+			PLAY C 5;
+			PLAY D 5 B_JumpEnd();
+			goto Think;
+		Run:
+			PLAY ABCD 2;
+			goto Think;
+		Walk:
+			PLAY ABCD 4;
+			goto Think;
+	}
+}
+
+class CyberDoomBlack : CyberDoom
+{
+	override void InitBehavior()
+	{
+		MeleeState = null;
+		MissileState = FindState("Missile", true);
+		AttackStates.Push(MissileState);
+		TBehaviorTreeManager BehaviorTreeManager = TBehaviorTreeManager.GetInstance();
+		Behavior = BehaviorTreeManager.GetBehavior(self.GetClass());
+		if (!Behavior)
+		{
+			Behavior = TSequence.Create()
+				.AddBehavior(TCyberBasic_AINode_TimeFreeze.Create())
+				.AddBehavior(TCyberBasic_AINode_BasicLife.Create())
+				.AddBehavior(
+					TSelector.Create() // Strategy selector
+						.AddBehavior(TCyberBasic_AINode_SearchHelp.Create())
+						.AddBehavior(TCyberBasic_AINode_Goal.Create())
+						.AddBehavior(TCyberBasic_AINode_Fight.Create())
+						.AddBehavior(TCyberBasic_AINode_Gesture.Create())
+						.AddBehavior(TCyberBasic_AINode_Rest.Create())
+				)
+				.AddBehavior(
+					TSequence.Create()
+					.AddBehavior(TCyberBasic_AINode_ChaseMode.Create(8, 16))
+					.AddBehavior(
+						TSelector.Create() // Tactical selector
+							.AddBehavior(TCyberBasic_AINode_Jump.Create())
+							.AddBehavior(TCyberBasic_AINode_CoverZone.Create())
+							.AddBehavior(TCyberBasic_AINode_NextMove.Create())
+					)
+					.AddBehavior(TCyberBasic_AINode_Move.Create())
+				)
+				.AddBehavior(
+					TSequence.Create()
+					.AddBehavior(TCyberBasic_AINode_BasicCombat.Create())
+					.AddBehavior(
+						TUtilitySelector.Create()
+							.AddBehavior(CyberDoom_AINode_CombatPLC.Create())
+							.AddBehavior(CyberDoom_AINode_CombatSTD.Create())
+					)
+				)
+			;
+			BehaviorTreeManager.AddBehavior(self.GetClass(), Behavior);
+		}
+	}
+	default
+	{
+		DropItem "Clip", 192;
+		DropItem "ClipBox", 32;
+		DropItem "VanillaRifle", 32;
+		DropItem "CyberBattery", 192;
+		DropItem "CyberBatteryPack", 32;
+		DropItem "PlasmaLaserCannon", 32;
+		//DropItem "CyberArmor", 11;
+		Tag "Cyber Doom Black";
+		Translation "Marine_Black";
+	}
+	states
+	{
+		Spawn:
+			TNT1 A 0;
+			goto Think;
+		See:
+			TNT1 A 0;
+			goto Think;
+		Missile:
+			PLAY E 2 A_Jump(16, "Think");
+			PLAY F 2 bright;
+			PLAY F 0 bright A_MonsterRefire(0, "Think");
+			goto Missile;
+		Pain:
+			TNT1 A 0 A_Pain();
+			goto Think;
+		Death:
+			PLAY H 10 B_Die();
+			PLAY IJKLM 10;
+			PLAY N -1;
+			stop;
+		XDeath:
+			PLAY O 5 B_Die();
+			PLAY PQRSTUV 5;
+			PLAY W -1;
+			stop;
+		Raise:
+			PLAY N 10 Initialize();
+			PLAY MKJIH 10;
+			goto Think;
+		Think:
+			TNT1 A 0 B_Think();
+			loop; // Never, it is safe!
+		Idle:
+			PLAY AB 10;
+			goto Think;
+		Jump:
+			PLAY A 5 B_JumpBegin();
+			PLAY B 5;
+			PLAY C 5;
+			PLAY D 5 B_JumpEnd();
+			goto Think;
+		Run:
+			PLAY ABCD 2;
+			goto Think;
+		Walk:
+			PLAY ABCD 4;
+			goto Think;
+	}
+}
