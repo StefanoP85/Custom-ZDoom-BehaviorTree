@@ -781,8 +781,6 @@ class SuperCyberSoldierFemale3 : TCyberAdvanced abstract
 		DeathSound "SuperSoldierFemale/Death";
 		PainSound "SuperSoldierFemale/Pain";
 		SeeSound "SuperSoldierFemale/Sight";
-		+MissileEvenMore;
-		+MissileMore;
 	}
 	states
 	{
