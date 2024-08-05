@@ -1,7 +1,7 @@
 # Custom-ZDoom-BehaviorTree
 More sophisticated behavior in ZDoom actors with behavior trees.
 
-This mod implements basic Behavior Tree management in ZScript in ZDoom; it's based on the [Inkoalawetrust's KAI library](https://github.com/inkoalawetrust/KAI) and on my [https://github.com/StefanoP85/Custom-ZDoom-PathFinding].
+This mod implements basic Behavior Tree management in ZScript in ZDoom; it's based on the [Inkoalawetrust's KAI library](https://github.com/inkoalawetrust/KAI) and on my [navmesh system](https://github.com/StefanoP85/Custom-ZDoom-PathFinding).
 
 ## Features
 The ZScript modules included in this repository contains the following functionalities:
