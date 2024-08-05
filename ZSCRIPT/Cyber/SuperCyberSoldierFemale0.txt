@@ -1,0 +1,715 @@
+//==============================================================================
+//
+// Super Cyber Soldier Female.
+//
+//==============================================================================
+
+// -----------------------------------------------------------------------------
+// AI nodes.
+// -----------------------------------------------------------------------------
+
+// Node Rest: perform idle animation.
+class SuperCyberSoldierFemale0_AINode_Rest : TCyberBasic_AINode_Rest
+{
+	static SuperCyberSoldierFemale0_AINode_Rest Create()
+	{
+		SuperCyberSoldierFemale0_AINode_Rest Result = New('SuperCyberSoldierFemale0_AINode_Rest');
+		return Result;
+	}
+	override TStatus Update(TCustomCyberActor CustomCyberActor)
+	{
+		CustomCyberActor.Destination = CustomCyberActor.Pos;
+		if (CustomCyberActor.CurrentWeapon)
+		{
+			CustomCyberActor.UpdateStateLabel("Rifle.Idle");
+		}
+		else
+		{
+			CustomCyberActor.UpdateStateLabel("Idle");
+		}
+		return BH_SUCCESS;
+	}
+}
+
+// Node ChaseMode: decide the chase mode.
+class SuperCyberSoldierFemale0_AINode_ChaseMode : TBehavior
+{
+	int RunSpeed;
+	int WalkSpeed;
+	static SuperCyberSoldierFemale0_AINode_ChaseMode Create(int WalkSpeed = 9, int RunSpeed = 18)
+	{
+		SuperCyberSoldierFemale0_AINode_ChaseMode Result = New('SuperCyberSoldierFemale0_AINode_ChaseMode');
+		Result.WalkSpeed = WalkSpeed;
+		Result.RunSpeed = RunSpeed;
+		return Result;
+	}
+	override TStatus Update(TCustomCyberActor CustomCyberActor)
+	{
+		if (CustomCyberActor.PriorityQueue.Items.Size() > 0)
+		{
+			if (CustomCyberActor.CurrentWeapon)
+			{
+				CustomCyberActor.UpdateStateLabel("Rifle.Run");
+				CustomCyberActor.Speed = RunSpeed;
+				return BH_SUCCESS;
+			}
+			TPriorityQueueItem PriorityQueueItem = CustomCyberActor.PriorityQueue.Items[0];
+			if
+			(
+				(CustomCyberActor.IsIndestructible(PriorityQueueItem.Monster))
+				|| (CustomCyberActor.HasGodMode(PriorityQueueItem.Monster))
+				|| (CustomCyberActor.HasBuddha(PriorityQueueItem.Monster))
+				|| (CustomCyberActor.IsFrightening(PriorityQueueItem.Monster))
+			)
+			{
+				CustomCyberActor.UpdateStateLabel("Run");
+				CustomCyberActor.Speed = RunSpeed;
+				return BH_SUCCESS;
+			}
+			if
+			(
+				(PriorityQueueItem.ExperiencedThreatLevel == ETL_CRITICAL)
+				|| (PriorityQueueItem.ThreatLevel > CustomCyberActor.ThreatLevelThreshold)
+			)
+			{
+				CustomCyberActor.UpdateStateLabel("Run");
+				CustomCyberActor.Speed = RunSpeed;
+				return BH_SUCCESS;
+			}
+			if
+			(
+				(PriorityQueueItem.ExperiencedThreatLevel == ETL_DANGER)
+				|| (PriorityQueueItem.ThreatLevel == CustomCyberActor.ThreatLevelThreshold)
+			)
+			{
+				CustomCyberActor.UpdateStateLabel("Run");
+				CustomCyberActor.Speed = RunSpeed;
+				return BH_SUCCESS;
+			}
+			if
+			(
+				(PriorityQueueItem.ExperiencedThreatLevel == ETL_NORMAL)
+				|| (PriorityQueueItem.ThreatLevel >= THREAT_NORMAL)
+			)
+			{
+				CustomCyberActor.UpdateStateLabel("Run");
+				CustomCyberActor.Speed = RunSpeed;
+				return BH_SUCCESS;
+			}
+			CustomCyberActor.UpdateStateLabel("Walk");
+			CustomCyberActor.Speed = WalkSpeed;
+			return BH_SUCCESS;
+		}
+		return BH_SUCCESS;
+	}
+}
+
+// Node NextMove: perform tactical movement.
+class SuperCyberSoldierFemale0_AINode_NextMove : TCyberBasic_AINode_NextMove
+{
+	static SuperCyberSoldierFemale0_AINode_NextMove Create()
+	{
+		SuperCyberSoldierFemale0_AINode_NextMove Result = New('SuperCyberSoldierFemale0_AINode_NextMove');
+		return Result;
+	}
+	override double CalculateUtilityDistance(TCustomCyberActor CustomCyberActor, TPriorityQueueItem PriorityQueueItem)
+	{
+		if
+		(
+			(CustomCyberActor.IsIndestructible(PriorityQueueItem.Monster))
+			|| (CustomCyberActor.HasGodMode(PriorityQueueItem.Monster))
+			|| (CustomCyberActor.HasBuddha(PriorityQueueItem.Monster))
+			|| (CustomCyberActor.IsFrightening(PriorityQueueItem.Monster))
+		)
+			return 1048576;	// As far as possible!
+		if
+		(
+			(PriorityQueueItem.ExperiencedThreatLevel == ETL_CRITICAL)
+			|| (PriorityQueueItem.ThreatLevel > CustomCyberActor.ThreatLevelThreshold)
+		)
+			return 1024;
+		if
+		(
+			(PriorityQueueItem.ExperiencedThreatLevel == ETL_DANGER)
+			|| (PriorityQueueItem.ThreatLevel == CustomCyberActor.ThreatLevelThreshold)
+		)
+			return 256;
+		if
+		(
+			(PriorityQueueItem.ExperiencedThreatLevel == ETL_NORMAL)
+			|| (PriorityQueueItem.ThreatLevel >= THREAT_ABOVENORMAL)
+		)
+			return 128;
+		return 64;
+	}
+}
+
+// Node Hand1: check if fit for a energy attack.
+class SuperCyberSoldierFemale0_AINode_Hand1 : TUtilityBehavior
+{
+	static SuperCyberSoldierFemale0_AINode_Hand1 Create()
+	{
+		SuperCyberSoldierFemale0_AINode_Hand1 Result = New('SuperCyberSoldierFemale0_AINode_Hand1');
+		return Result;
+	}
+	override double CalculateUtility(TCustomCyberActor CustomCyberActor)
+	{
+		TPriorityQueueItem PriorityQueueItem = CustomCyberActor.PriorityQueue.Items[0];
+		if (PriorityQueueItem.ExperiencedThreatLevel == ETL_CRITICAL)
+			return 0.4;
+		if (PriorityQueueItem.ExperiencedThreatLevel == ETL_DANGER)
+			return 0.4;
+		switch (PriorityQueueItem.ThreatLevel)
+		{
+			case THREAT_UNSTOPPABLE:
+				return 0.4;
+				break;
+			case THREAT_SUPERDANGER:
+				return 0.4;
+				break;
+			case THREAT_VERYDANGEROUS:
+				return 0.35;
+				break;
+			case THREAT_DANGEROUS:
+				return 0.3;
+				break;
+			case THREAT_ABOVENORMAL:
+				return 0.25;
+				break;
+			case THREAT_NORMAL:
+				return 0.2;
+				break;
+			case THREAT_MILD:
+				return 0.2;
+				break;
+			case THREAT_LOW:
+				return 0.15;
+				break;
+			case THREAT_VERYLOW:
+				return 0.1;
+				break;
+			case THREAT_NONE:
+				return 0.05;
+				break;
+			default:
+				return 0;
+				break;
+		}
+		return 0;
+	}
+	override TStatus Update(TCustomCyberActor CustomCyberActor)
+	{
+		if (CustomCyberActor.IsInAttackState())
+			return BH_RUNNING;
+		if (CustomCyberActor.CurrentWeapon)
+		{
+			CustomCyberActor.A_ChangeModel("", 1, "MODELS/CyberSoldierFemale", "NoWeapon.iqm", 1, "", "");
+			CustomCyberActor.CurrentWeapon = null;
+		}
+		CustomCyberActor.UpdateStateLabel("Hand1.Boost", true);
+		return BH_SUCCESS;
+	}
+}
+
+// Node Hand2: check if fit for a energy attack.
+class SuperCyberSoldierFemale0_AINode_Hand2 : TUtilityBehavior
+{
+	static SuperCyberSoldierFemale0_AINode_Hand2 Create()
+	{
+		SuperCyberSoldierFemale0_AINode_Hand2 Result = New('SuperCyberSoldierFemale0_AINode_Hand2');
+		return Result;
+	}
+	override double CalculateUtility(TCustomCyberActor CustomCyberActor)
+	{
+		TPriorityQueueItem PriorityQueueItem = CustomCyberActor.PriorityQueue.Items[0];
+		if (PriorityQueueItem.ExperiencedThreatLevel == ETL_CRITICAL)
+			return 0.05;
+		if (PriorityQueueItem.ExperiencedThreatLevel == ETL_DANGER)
+			return 0.05;
+		switch (PriorityQueueItem.ThreatLevel)
+		{
+			case THREAT_UNSTOPPABLE:
+				return 0.05;
+				break;
+			case THREAT_SUPERDANGER:
+				return 0.05;
+				break;
+			case THREAT_VERYDANGEROUS:
+				return 0.1;
+				break;
+			case THREAT_DANGEROUS:
+				return 0.1;
+				break;
+			case THREAT_ABOVENORMAL:
+				return 0.2;
+				break;
+			case THREAT_NORMAL:
+				return 0.25;
+				break;
+			case THREAT_MILD:
+				return 0.3;
+				break;
+			case THREAT_LOW:
+				return 0.35;
+				break;
+			case THREAT_VERYLOW:
+				return 0.4;
+				break;
+			case THREAT_NONE:
+				return 0.45;
+				break;
+			default:
+				return 0;
+				break;
+		}
+		return 0;
+	}
+	override TStatus Update(TCustomCyberActor CustomCyberActor)
+	{
+		if (CustomCyberActor.IsInAttackState())
+			return BH_RUNNING;
+		if (CustomCyberActor.CurrentWeapon)
+		{
+			CustomCyberActor.A_ChangeModel("", 1, "MODELS/CyberSoldierFemale", "NoWeapon.iqm", 1, "", "");
+			CustomCyberActor.CurrentWeapon = null;
+		}
+		CustomCyberActor.UpdateStateLabel("Hand2.Boost", true);
+		return BH_SUCCESS;
+	}
+}
+
+// Node Punch: check if fit for a punch attack.
+class SuperCyberSoldierFemale0_AINode_Punch : TUtilityBehavior
+{
+	double MaxDistance; // Actually is squared for performance reasons.
+	static SuperCyberSoldierFemale0_AINode_Punch Create(double MaxDistance = 128)
+	{
+		SuperCyberSoldierFemale0_AINode_Punch Result = New('SuperCyberSoldierFemale0_AINode_Punch');
+		Result.MaxDistance = MaxDistance ** 2;
+		return Result;
+	}
+	override double CalculateUtility(TCustomCyberActor CustomCyberActor)
+	{
+		if (CustomCyberActor.Distance2DSquared(CustomCyberActor.Target) <= MaxDistance)
+		{
+			TPriorityQueueItem PriorityQueueItem = CustomCyberActor.PriorityQueue.Items[0];
+			if (PriorityQueueItem.ExperiencedThreatLevel == ETL_CRITICAL)
+				return 0;
+			if (PriorityQueueItem.ExperiencedThreatLevel == ETL_DANGER)
+				return 0;
+			switch (PriorityQueueItem.ThreatLevel)
+			{
+				case THREAT_UNSTOPPABLE:
+					return 0;
+					break;
+				case THREAT_SUPERDANGER:
+					return 0;
+					break;
+				case THREAT_VERYDANGEROUS:
+					return 0.1;
+					break;
+				case THREAT_DANGEROUS:
+					return 0.2;
+					break;
+				case THREAT_ABOVENORMAL:
+					return 0.4;
+					break;
+				case THREAT_NORMAL:
+					return 0.6;
+					break;
+				case THREAT_MILD:
+					return 0.7;
+					break;
+				case THREAT_LOW:
+					return 0.8;
+					break;
+				case THREAT_VERYLOW:
+					return 0.85;
+					break;
+				case THREAT_NONE:
+					return 0.9;
+					break;
+				default:
+					return 0;
+					break;
+			}
+			return 0;
+		}
+		return 0;
+	}
+	override TStatus Update(TCustomCyberActor CustomCyberActor)
+	{
+		if (CustomCyberActor.IsInAttackState())
+			return BH_RUNNING;
+		if (CustomCyberActor.CurrentWeapon)
+		{
+			CustomCyberActor.A_ChangeModel("", 1, "MODELS/CyberSoldierFemale", "NoWeapon.iqm", 1, "", "");
+			CustomCyberActor.CurrentWeapon = null;
+		}
+		CustomCyberActor.UpdateStateLabel("Punch", true);
+		return BH_SUCCESS;
+	}
+}
+
+// Node Stomp: check if fit for stomping smaller foes.
+class SuperCyberSoldierFemale0_AINode_Stomp : TUtilityBehavior
+{
+	double MaxDistance; // Actually is squared for performance reasons.
+	static SuperCyberSoldierFemale0_AINode_Stomp Create(double MaxDistance = 128)
+	{
+		SuperCyberSoldierFemale0_AINode_Stomp Result = New('SuperCyberSoldierFemale0_AINode_Stomp');
+		Result.MaxDistance = MaxDistance ** 2;
+		return Result;
+	}
+	override double CalculateUtility(TCustomCyberActor CustomCyberActor)
+	{
+		Actor Target = CustomCyberActor.Target;
+		if (CustomCyberActor.Distance2DSquared(CustomCyberActor.Target) <= MaxDistance)
+			if ((Target.Height <= 60) && (Target.default.Health <= 200))
+				return 0.9;
+		return 0;
+	}
+	override TStatus Update(TCustomCyberActor CustomCyberActor)
+	{
+		if (CustomCyberActor.IsInAttackState())
+			return BH_RUNNING;
+		if (CustomCyberActor.CurrentWeapon)
+		{
+			CustomCyberActor.A_ChangeModel("", 1, "MODELS/CyberSoldierFemale", "NoWeapon.iqm", 1, "", "");
+			CustomCyberActor.CurrentWeapon = null;
+		}
+		CustomCyberActor.UpdateStateLabel("Stomp", true);
+		return BH_SUCCESS;
+	}
+}
+
+// Node CombatLG: check if fit for LightningGun usage.
+class SuperCyberSoldierFemale0_AINode_CombatLG : TUtilityBehavior
+{
+	double MaxDistance; // Actually is squared for performance reasons.
+	static SuperCyberSoldierFemale0_AINode_CombatLG Create(double MaxDistance = 384)
+	{
+		SuperCyberSoldierFemale0_AINode_CombatLG Result = New('SuperCyberSoldierFemale0_AINode_CombatLG');
+		Result.MaxDistance = MaxDistance ** 2;
+		return Result;
+	}
+	override double CalculateUtility(TCustomCyberActor CustomCyberActor)
+	{
+		if (CustomCyberActor.Distance2DSquared(CustomCyberActor.Target) <= MaxDistance)
+		{
+			if ((CustomCyberActor.Target.Health <= 70) || (CustomCyberActor.Target.Player))
+				return 0.6;
+		}
+		return 0;
+	}
+	override TStatus Update(TCustomCyberActor CustomCyberActor)
+	{
+		if (CustomCyberActor.WeaponCooldown)
+			CustomCyberActor.WeaponCooldown--;
+		if (CustomCyberActor.WeaponCooldown == 0)
+		{
+			CustomCyberActor.UpdateStateLabel("Rifle.Fire", true);
+			if (CustomCyberActor.CurrentWeapon != 'LightningGun')
+			{
+				CustomCyberActor.A_ChangeModel("", 1, "MODELS/CyberSoldierFemale", "LightningGun.iqm", 1, "MODELS/LightningGun", "LightningGun.png");
+				CustomCyberActor.CurrentWeapon = 'LightningGun';
+				CustomCyberActor.WeaponCooldown = 2;
+				return BH_RUNNING;
+			}
+			CustomCyberActor.A_StartSound("weapons/lg", CHAN_WEAPON);
+			CustomCyberActor.B_Missile('LightningGunProjectile', 64);
+			CustomCyberActor.WeaponCooldown = 4;
+		}
+		return BH_SUCCESS;
+	}
+}
+
+// Node CombatCR: check if fit for CyberRifle usage.
+class SuperCyberSoldierFemale0_AINode_CombatCR : TUtilityBehavior
+{
+	double MaxDistance; // Actually is squared for performance reasons.
+	static SuperCyberSoldierFemale0_AINode_CombatCR Create(double MaxDistance = 1024)
+	{
+		SuperCyberSoldierFemale0_AINode_CombatCR Result = New('SuperCyberSoldierFemale0_AINode_CombatCR');
+		Result.MaxDistance = MaxDistance ** 2;
+		return Result;
+	}
+	override double CalculateUtility(TCustomCyberActor CustomCyberActor)
+	{
+		if (CustomCyberActor.Distance2DSquared(CustomCyberActor.Target) <= MaxDistance)
+		{
+			return 0.5;
+		}
+		return 0;
+	}
+	override TStatus Update(TCustomCyberActor CustomCyberActor)
+	{
+		if (CustomCyberActor.WeaponCooldown)
+			CustomCyberActor.WeaponCooldown--;
+		if (CustomCyberActor.WeaponCooldown == 0)
+		{
+			CustomCyberActor.UpdateStateLabel("Rifle.Fire", true);
+			if (CustomCyberActor.CurrentWeapon != 'CyberRifle')
+			{
+				CustomCyberActor.A_ChangeModel("", 1, "MODELS/CyberSoldierFemale", "CyberRifle.iqm", 1, "MODELS/CyberRifle", "BaseTexture.png");
+				CustomCyberActor.CurrentWeapon = 'CyberRifle';
+				CustomCyberActor.WeaponCooldown = 2;
+				return BH_RUNNING;
+			}
+			CustomCyberActor.A_StartSound("weapons/cr", CHAN_WEAPON);
+			CustomCyberActor.B_Missile('CyberRifleProjectile', 64);
+			CustomCyberActor.WeaponCooldown = 4;
+		}
+		return BH_SUCCESS;
+	}
+}
+
+// -----------------------------------------------------------------------------
+// SuperCyberSoldierFemale0.
+// -----------------------------------------------------------------------------
+
+class SuperCyberSoldierFemale0 : TCyberAdvanced abstract
+{
+	override void InitBehavior()
+	{
+		MeleeState = FindState("Melee", true);
+		MissileState = FindState("Missile", true);
+		AttackStates.Push(MeleeState);
+		AttackStates.Push(MissileState);
+		AttackStates.Push(FindState("Hand1.Boost", true));
+		AttackStates.Push(FindState("Hand2.Boost", true));
+		AttackStates.Push(FindState("Punch", true));
+		AttackStates.Push(FindState("Stomp", true));
+		AttackStates.Push(FindState("Rifle.Fire", true));
+		TBehaviorTreeManager BehaviorTreeManager = TBehaviorTreeManager.GetInstance();
+		Behavior = BehaviorTreeManager.GetBehavior(self.GetClass());
+		if (!Behavior)
+		{
+			Behavior = TSequence.Create()
+				.AddBehavior(TCyberBasic_AINode_TimeFreeze.Create())
+				.AddBehavior(TCyberBasic_AINode_BasicLife.Create())
+				.AddBehavior(
+					TSelector.Create() // Strategy selector
+						.AddBehavior(TCyberBasic_AINode_SearchHelp.Create())
+						.AddBehavior(TCyberBasic_AINode_Goal.Create())
+						.AddBehavior(TCyberBasic_AINode_Fight.Create())
+						.AddBehavior(TCyberBasic_AINode_Gesture.Create())
+						.AddBehavior(SuperCyberSoldierFemale0_AINode_Rest.Create())
+				)
+				.AddBehavior(
+					TSequence.Create()
+					.AddBehavior(SuperCyberSoldierFemale0_AINode_ChaseMode.Create(9, 18))
+					.AddBehavior(
+						TSelector.Create() // Tactical selector
+							.AddBehavior(TCyberBasic_AINode_Jump.Create(9))
+							.AddBehavior(TCyberBasic_AINode_CoverZone.Create())
+							.AddBehavior(SuperCyberSoldierFemale0_AINode_NextMove.Create())
+					)
+					.AddBehavior(TCyberBasic_AINode_Move.Create())
+				)
+				.AddBehavior(
+					TSequence.Create()
+					.AddBehavior(TCyberBasic_AINode_BasicCombat.Create())
+					.AddBehavior(
+						TUtilitySelector.Create()
+							.AddBehavior(SuperCyberSoldierFemale0_AINode_Punch.Create())
+							.AddBehavior(SuperCyberSoldierFemale0_AINode_Stomp.Create())
+							.AddBehavior(SuperCyberSoldierFemale0_AINode_Hand1.Create())
+							.AddBehavior(SuperCyberSoldierFemale0_AINode_Hand2.Create())
+							.AddBehavior(SuperCyberSoldierFemale0_AINode_CombatLG.Create())
+							.AddBehavior(SuperCyberSoldierFemale0_AINode_CombatCR.Create())
+					)
+				)
+			;
+			BehaviorTreeManager.AddBehavior(self.GetClass(), Behavior);
+		}
+	}
+	override void Initialize()
+	{
+		super.Initialize();
+		A_GiveInventory('EnergyShield1', 1);
+	}
+	void B_IdleNormal()
+	{
+		CurrentWeapon = null;
+		A_ChangeModel("", 1, "MODELS/CyberSoldierFemale", "NoWeapon.iqm", 1, "", "");
+		UpdateStateLabel("Idle");
+	}
+	void B_MissileHand1()
+	{
+		if (Target)
+		{
+			B_Missile('CyberBallSmall', 64);
+		}
+	}
+	void B_MissileHand2()
+	{
+		if (Target)
+		{
+			B_Missile('SmallKiBall', 40);
+		}
+	}
+	void B_Punch()
+	{
+		if (Target)
+			A_CustomMeleeAttack(Random(1, 8) * 8, "SuperSoldierFemale/Melee");
+	}
+	void B_Stomp()
+	{
+		if ((Target) && (Target.Height <= 60) && (Target.default.Health) <= 200 && (Target.default.Health > 0))
+		{
+			if ( Distance2D(Target) <= Radius + Target.Radius + 40 )
+			{
+				Target.GiveInventory('TStompToken', 1);
+				A_KillTarget("Crush", KILS_FOILINVUL);
+			}
+		}
+	}
+	default
+	{
+		CameraHeight 48;
+		Health 625;
+		Height 64;
+		Mass 10000;
+		MeleeRange 80;
+		PainChance 80;
+		Radius 20;
+		Speed 12;
+		Tag "Super Cyber Soldier Female";
+		KAI_Actor.AggressionMultiplier 0.75;
+		KAI_Actor.ThreatLevel THREAT_VERYDANGEROUS;
+		KAI_Actor.ThreatLevelThreshold THREAT_SUPERDANGER;
+		ActiveSound "SuperSoldierFemale/Active";
+		DeathSound "SuperSoldierFemale/Death";
+		PainSound "SuperSoldierFemale/Pain";
+		SeeSound "SuperSoldierFemale/Sight";
+	}
+	states
+	{
+		Spawn:
+			TNT1 A 0;
+			goto Think;
+		See:
+			TNT1 A 0;
+			goto Think;
+		Melee:
+			TNT1 A 0;
+			goto Think;
+		Missile:
+			TNT1 A 0;
+			goto Think;
+		Pain:
+			NPA0 A 1 A_Pain();
+			NPA0 BCDEFGHIJKLMNOPQRSTUVWXYZ 1;
+			NPA1 ABCDEFGHIJK 1;
+			goto Think;
+		Death:
+			NDE0 A 1 A_ScreamAndUnblock();
+			NDE0 BCDEFGHIJKLMNOPQRSTUVWXYZ 1;
+			NDE1 ABCDEFGHIJKLMNOPQRSTUVWXYZ 1;
+			NDE2 ABCDEFGHIJKLMNOPQRSTUVWXYZ 1;
+			NDE3 A -1;
+			stop;
+		Raise:
+			NRA0 A 1 Initialize();
+			NRA0 BCDEFGHIJKLMNOPQRSTUVWXYZ 1;
+			NRA1 ABCDEFGHIJKLMNOPQRSTUVWXYZ 1;
+			NRA2 ABCDEFGHIJKLMNOPQRSTUVWXYZ 1;
+			NRA3 ABCDEFGHIJKLMNOPQRSTUVWXYZ 1;
+			NRA4 ABCDEFGHIJKLMNOPQRSTUVWXYZ 1;
+			NRA5 ABCDEFGHIJKLMNOPQRSTUVWXYZ 1;
+			NRA6 ABCDEFGHIJKLMNOPQRSTUVWXYZ 1;
+			NRA7 ABCDEFGHIJKLMNOPQRSTUVWXYZ 1;
+			NRA8 ABCDEFGHIJKLMNOPQRSTU 1;
+			goto Think;
+		Think:
+			TNT1 A 0 B_Think();
+			loop; // Never, it is safe!
+		Hand1.Boost:
+			NH10 ABCDEFGHIJKLMNOPQRSTUVWXYZ 1 Light("ShieldBoostState") A_FaceTarget();
+			NH11 ABC 1 Light("ShieldBoostState") A_FaceTarget();
+			NH11 D 1 Light("ShieldBoostState") B_MissileHand1();
+			NH11 EFGHIJKLMNOPQRSTUVWXYZ 1 Light("ShieldBoostState") A_FaceTarget();
+			NH12 ABCDEFGHIJKLMNOPQR 1 Light("ShieldBoostState") A_FaceTarget();
+			goto Think;
+		Hand2.Boost:
+			NH20 ABCDEFGHIJKLMNOPQRSTUVWXYZ 1 Light("ShieldBoostState") A_FaceTarget();
+			NH21 ABCD 1 Light("ShieldBoostState") A_FaceTarget();
+			NH21 EFGHIJKLMNOPQRSTUVWXYZ 1 Light("ShieldBoostState") B_MissileHand2();
+			NH22 ABCDEFGHIJKLMNOPQRSTUVWXYZ 1 Light("ShieldBoostState") B_MissileHand2();
+			NH23 ABCDEFGHIJKLMNOPQRSTUVW 1 Light("ShieldBoostState") A_FaceTarget();
+			goto Think;
+		Idle:
+			NID0 ABCDEFGHIJKLMNOPQRSTUVWXYZ 1;
+			NID1 ABCDEFGHIJKLMNOPQRSTUVWXYZ 1;
+			NID2 ABCDEFGHIJKLMNOPQRSTUVWXYZ 1;
+			NID3 ABCDEFGHIJKLMNOPQRSTUVW 1;
+			#### # 0 PlayActiveSound();
+			goto Think;
+		Jump:
+			NJU0 A 1 B_JumpBegin();
+			NJU0 BCDEFGHIJKLMNOPQRSTUVWXYZ 1;
+			NJU1 AB 1;
+			NJU1 C 1 B_JumpEnd();
+			goto Think;
+		Punch:
+			NPU0 ABCDEFGHIJKL 1 B_MoveForward();
+			NPU0 M 1 B_Punch();
+			NPU0 NOPQRSTUVWXYZ 1 B_MoveBackward();
+			NPU1 ABCDE 1 B_MoveBackward();
+			goto Think;
+		Run:
+			NRU0 ABCDEFGHIJKLMNOPQRSTUV 1;
+			goto Think;
+		Stomp:
+			NST0 ABCDEFGHIJKLMN 1 B_MoveForward();
+			NST0 O 1 ThrustThingZ(0, 30, 0, 0);
+			NST0 PQRSTUVWXYZ 1 B_MoveForward();
+			NST1 ABCDEFGHIJ 1 B_MoveForward();
+			NST1 K 1 B_Stomp();
+			NST1 LMNOPQRSTUVWXYZ 1;
+			NST2 ABCDEF 1;
+			goto Think;
+		Swim:
+			NSW0 ABCDEFGHIJKLMNOPQRSTUVWXYZ 1;
+			NSW1 ABCDEFGHIJKLMNOPQRSTUVWXYZ 1;
+			NSW2 ABCDEFGHIJKLMNOPQRSTUVWXYZ 1;
+			NSW3 ABCDEFGHIJKLMNOPQRSTUVWXYZ 1;
+			NSW4 ABCDEFGHIJKLMNOPQRSTUVWXYZ 1;
+			NSW5 ABCDEFG 1;
+			goto Think;
+		Walk:
+			NWA0 ABCDEFGHIJKLMNOPQRSTUVWXYZ 1;
+			NWA1 ABCDEFGHIJ 1;
+			goto Think;
+		Water:
+			NWT0 ABCDEFGHIJKLMNOPQRSTUVWXYZ 1;
+			NWT1 ABCDEFGHIJKLMNOPQRSTUVWXYZ 1;
+			NWT2 ABCDEFGHIJKLMNOPQRSTUVWXYZ 1;
+			NWT3 ABCDEFGHIJKLM 1;
+			goto Think;
+		Rifle.Idle:
+			WID0 ABCDEFGHIJKLMNOPQRSTUVWXYZ 1;
+			WID1 ABCDEFGHIJKLMNOPQRSTUVWXYZ 1;
+			WID2 ABCDEFGHIJKLMNOPQRSTUVWXYZ 1;
+			WID3 ABCDEFGHIJKLMNOPQRSTUVWXYZ 1;
+			WID4 ABCDEFGHIJKLMNOPQRSTUVWXYZ 1;
+			WID5 ABCDEFGHIJKLMNOPQRSTUVWXYZ 1;
+			WID6 ABCDEFGHIJKLMNOPQRSTUVWXYZ 1;
+			WID7 ABCDEFGHIJKLMNOPQRSTUVWXYZ 1;
+			WID8 ABCDEFGHIJKLMNOPQRSTUVWXYZ 1;
+			WID9 ABCDEFGHIJKLMNOPQRSTUVWX 1;
+			#### # 0 B_IdleNormal();
+			goto Think;
+		Rifle.Run:
+			WRU0 ABCDEFGHIJKLMNOPQRSTUVW 1;
+			goto Think;
+		Rifle.Fire:
+			WFI0 A 1 A_Jump(16, "Think");
+			WFI0 BCDEFGH 1 A_FaceTarget();
+			WFI0 I 1 A_MonsterRefire(0, "Think");
+			goto Rifle.Fire;
+	}
+}
+class SuperCyberSoldierFemale0Black  : SuperCyberSoldierFemale0 {}
+class SuperCyberSoldierFemale0Yellow : SuperCyberSoldierFemale0 {}
