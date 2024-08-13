@@ -1,6 +1,6 @@
 //==============================================================================
 //
-// Cyber Doom.
+// Super Cyber Soldier.
 //
 //==============================================================================
 
@@ -9,11 +9,11 @@
 // -----------------------------------------------------------------------------
 
 // Node CombatSTD: check if fit for a missile attack.
-class CyberDoom_AINode_CombatSTD : TUtilityBehavior
+class SuperCyberSoldier_AINode_CombatSTD : TUtilityBehavior
 {
-	static CyberDoom_AINode_CombatSTD Create()
+	static SuperCyberSoldier_AINode_CombatSTD Create()
 	{
-		CyberDoom_AINode_CombatSTD Result = New('CyberDoom_AINode_CombatSTD');
+		SuperCyberSoldier_AINode_CombatSTD Result = New('SuperCyberSoldier_AINode_CombatSTD');
 		return Result;
 	}
 	override double CalculateUtility(TCustomCyberActor CustomCyberActor)
@@ -43,12 +43,12 @@ class CyberDoom_AINode_CombatSTD : TUtilityBehavior
 }
 
 // Node CombatPLC: check if fit for a missile attack.
-class CyberDoom_AINode_CombatPLC : TUtilityBehavior
+class SuperCyberSoldier_AINode_CombatPLC : TUtilityBehavior
 {
 	double MaxDistance; // Actually is squared for performance reasons.
-	static CyberDoom_AINode_CombatPLC Create(double MaxDistance = 1024)
+	static SuperCyberSoldier_AINode_CombatPLC Create(double MaxDistance = 1024)
 	{
-		CyberDoom_AINode_CombatPLC Result = New('CyberDoom_AINode_CombatPLC');
+		SuperCyberSoldier_AINode_CombatPLC Result = New('SuperCyberSoldier_AINode_CombatPLC');
 		Result.MaxDistance = MaxDistance ** 2;
 		return Result;
 	}
@@ -82,10 +82,10 @@ class CyberDoom_AINode_CombatPLC : TUtilityBehavior
 }
 
 // -----------------------------------------------------------------------------
-// CyberDoom.
+// SuperCyberSoldier.
 // -----------------------------------------------------------------------------
 
-class CyberDoom : TCyberBasic abstract
+class SuperCyberSoldier : TCyberBasic abstract
 {
 	override void Initialize()
 	{
@@ -95,26 +95,31 @@ class CyberDoom : TCyberBasic abstract
 	default
 	{
 		CameraHeight 42;
-		Health 100;
+		Health 250;
 		Height 56;
-		Mass 100;
-		PainChance 30;
-		Radius 20;
-		Speed 16;
-		Tag "Cyber Doom";
+		Mass 250;
+		PainChance 80;
+		Radius 12;
+		Speed 6;
+		Tag "Super Cyber Soldier";
 		KAI_Actor.AggressionMultiplier 1.0;
-		KAI_Actor.ThreatLevel THREAT_DANGEROUS;
+		KAI_Actor.ThreatLevel THREAT_VERYDANGEROUS;
 		KAI_Actor.ThreatLevelThreshold THREAT_VERYDANGEROUS;
-		ActiveSound "CyberDoom/Active";
-		AttackSound "CyberDoom/Attack";
-		DeathSound "CyberDoom/Death";
-		PainSound "CyberDoom/Pain";
-		SeeSound "CyberDoom/Sight";
+		ActiveSound "SuperCyberSoldier/Active";
+		DeathSound "SuperCyberSoldier/Death";
+		PainSound "SuperCyberSoldier/Pain";
+		SeeSound "SuperCyberSoldier/Sight";
 	}
 }
 
-class CyberDoomGreen : CyberDoom
+class SuperCyberSoldierGreen : SuperCyberSoldier
 {
+	override void Initialize()
+	{
+		super.Initialize();
+		EnergyShield1 EnergyShield = EnergyShield1(FindInventory('EnergyShield1'));
+		EnergyShield.A_ChangeModel('SuperCyberSoldierGreen');
+	}
 	override void InitBehavior()
 	{
 		MeleeState = null;
@@ -137,7 +142,7 @@ class CyberDoomGreen : CyberDoom
 				)
 				.AddBehavior(
 					TSequence.Create()
-					.AddBehavior(TCyberBasic_AINode_ChaseMode.Create(8, 16))
+					.AddBehavior(TCyberBasic_AINode_ChaseMode.Create(6, 12))
 					.AddBehavior(
 						TSelector.Create() // Tactical selector
 							.AddBehavior(TCyberBasic_AINode_Jump.Create())
@@ -162,8 +167,7 @@ class CyberDoomGreen : CyberDoom
 		DropItem "CellPack", 32;
 		DropItem "PlasmaGun", 32;
 		DropItem "CyberArmor", 11;
-		Tag "Cyber Doom Green";
-		Translation "CyberGreen";
+		Tag "Super Cyber Soldier Green";
 	}
 	states
 	{
@@ -174,51 +178,54 @@ class CyberDoomGreen : CyberDoom
 			TNT1 A 0;
 			goto Think;
 		Missile:
-			PLAY E 0 A_Jump(32, "Think");
-			PLAY E 7 A_FaceTarget();
-			PLAY F 1 bright B_Missile('ArachnotronPlasma');
-			PLAY F 0 bright A_MonsterRefire(0, "Think");
+			NIDL A 0 A_Jump(32, "Think");
+			NIDL A 7 A_FaceTarget();
+			NIDL A 1 bright B_Missile('ArachnotronPlasma');
+			NIDL A 0 bright A_MonsterRefire(0, "Think");
 			goto Missile;
 		Pain:
-			TNT1 A 0 A_Pain();
+			NJUM A 3 A_Pain();
+			NJUM BCDEFGHIJKLMNOPQR 1;
 			goto Think;
 		Death:
-			PLAY H 10 B_Die();
-			PLAY IJKLM 10;
-			PLAY N -1;
-			stop;
-		XDeath:
-			PLAY O 5 B_Die();
-			PLAY PQRSTUV 5;
-			PLAY W -1;
+			NDE1 A 3 B_Die();
+			NDE1 BCDEFGHIJKLMNOPQRSTUVWXYZ 3;
+			NDE2 ABCD 3;
+			NDE2 E -1;
 			stop;
 		Raise:
-			PLAY N 10 Initialize();
-			PLAY MKJIH 10;
+			NDE2 E 3 Initialize();
+			NDE2 DCBA 3;
+			NDE1 ZYXWVUTSRQPONMLKJIHGFEDCBA 3;
 			goto Think;
 		Think:
 			TNT1 A 0 B_Think();
 			loop; // Never, it is safe!
 		Idle:
-			PLAY AB 10;
+			NIDL ABCDEFGHIJK 3;
 			goto Think;
 		Jump:
-			PLAY A 5 B_JumpBegin();
-			PLAY B 5;
-			PLAY C 5;
-			PLAY D 5 B_JumpEnd();
+			NJUB A 3 B_JumpBegin();
+			NJUB BCDEFGHIJKLMNOP 3;
+			NJUB Q 3 B_JumpEnd();
 			goto Think;
 		Run:
-			PLAY ABCD 2;
+			NRUN ABCDEFGHIJKLMNOPQRSTUVWXY 3;
 			goto Think;
 		Walk:
-			PLAY ABCD 4;
+			NWAL ABCDEFGHIJK 3;
 			goto Think;
 	}
 }
 
-class CyberDoomRed : CyberDoom
+class SuperCyberSoldierRed : SuperCyberSoldier
 {
+	override void Initialize()
+	{
+		super.Initialize();
+		EnergyShield1 EnergyShield = EnergyShield1(FindInventory('EnergyShield1'));
+		EnergyShield.A_ChangeModel('SuperCyberSoldierRed');
+	}
 	override void InitBehavior()
 	{
 		MeleeState = null;
@@ -241,7 +248,7 @@ class CyberDoomRed : CyberDoom
 				)
 				.AddBehavior(
 					TSequence.Create()
-					.AddBehavior(TCyberBasic_AINode_ChaseMode.Create(8, 16))
+					.AddBehavior(TCyberBasic_AINode_ChaseMode.Create(6, 12))
 					.AddBehavior(
 						TSelector.Create() // Tactical selector
 							.AddBehavior(TCyberBasic_AINode_Jump.Create())
@@ -266,8 +273,7 @@ class CyberDoomRed : CyberDoom
 		DropItem "CellPack", 32;
 		DropItem "PlasmaRifle", 32;
 		DropItem "CyberArmor", 11;
-		Tag "Cyber Doom Red";
-		Translation "CyberRed";
+		Tag "Super Cyber Soldier Red";
 	}
 	states
 	{
@@ -278,51 +284,57 @@ class CyberDoomRed : CyberDoom
 			TNT1 A 0;
 			goto Think;
 		Missile:
-			PLAY E 0 A_Jump(32, "Think");
-			PLAY E 2 A_FaceTarget();
-			PLAY F 1 bright B_Missile('PlasmaBall');
-			PLAY F 0 bright A_MonsterRefire(0, "Think");
+			NIDL A 0 A_Jump(32, "Think");
+			NIDL A 2 A_FaceTarget();
+			NIDL A 1 bright B_Missile('PlasmaBall');
+			NIDL A 0 bright A_MonsterRefire(0, "Think");
 			goto Missile;
 		Pain:
-			TNT1 A 0 A_Pain();
+			NJUM A 3 A_Pain();
+			NJUM BCDEFGHIJKLMNOPQR 1;
 			goto Think;
 		Death:
-			PLAY H 10 B_Die();
-			PLAY IJKLM 10;
-			PLAY N -1;
-			stop;
-		XDeath:
-			PLAY O 5 B_Die();
-			PLAY PQRSTUV 5;
-			PLAY W -1;
+			NDE1 A 3 B_Die();
+			NDE1 BCDEFGHIJKLMNOPQRSTUVWXYZ 3;
+			NDE2 ABCD 3;
+			NDE2 E -1;
 			stop;
 		Raise:
-			PLAY N 10 Initialize();
-			PLAY MKJIH 10;
+			NDE2 E 3 Initialize();
+			NDE2 DCBA 3;
+			NDE1 ZYXWVUTSRQPONMLKJIHGFEDCBA 3;
 			goto Think;
 		Think:
 			TNT1 A 0 B_Think();
 			loop; // Never, it is safe!
 		Idle:
-			PLAY AB 10;
+			NIDL ABCDEFGHIJK 3;
 			goto Think;
 		Jump:
-			PLAY A 5 B_JumpBegin();
-			PLAY B 5;
-			PLAY C 5;
-			PLAY D 5 B_JumpEnd();
+			NJUB A 3 B_JumpBegin();
+			NJUB BCDEFGHIJKLMNOP 3;
+			NJUB Q 3 B_JumpEnd();
 			goto Think;
 		Run:
-			PLAY ABCD 2;
+			NRUN ABCDEFGHIJKLMNOPQRSTUVWXYZ[ 3;
+			goto Think;
+		Swim:
+			NSWI ABCDEFGHIJ 3;
 			goto Think;
 		Walk:
-			PLAY ABCD 4;
+			NWAL ABCDEFGHIJK 3;
 			goto Think;
 	}
 }
 
-class CyberDoomBlue : CyberDoom
+class SuperCyberSoldierBlue : SuperCyberSoldier
 {
+	override void Initialize()
+	{
+		super.Initialize();
+		EnergyShield1 EnergyShield = EnergyShield1(FindInventory('EnergyShield1'));
+		EnergyShield.A_ChangeModel('SuperCyberSoldierBlue');
+	}
 	override void InitBehavior()
 	{
 		MeleeState = null;
@@ -345,7 +357,7 @@ class CyberDoomBlue : CyberDoom
 				)
 				.AddBehavior(
 					TSequence.Create()
-					.AddBehavior(TCyberBasic_AINode_ChaseMode.Create(8, 16))
+					.AddBehavior(TCyberBasic_AINode_ChaseMode.Create(6, 12))
 					.AddBehavior(
 						TSelector.Create() // Tactical selector
 							.AddBehavior(TCyberBasic_AINode_Jump.Create())
@@ -370,8 +382,7 @@ class CyberDoomBlue : CyberDoom
 		DropItem "CellPack", 32;
 		DropItem "NFG", 32;
 		DropItem "CyberArmor", 11;
-		Tag "Cyber Doom Blue";
-		Translation "CyberBlue";
+		Tag "Super Cyber Soldier Blue";
 	}
 	states
 	{
@@ -382,158 +393,57 @@ class CyberDoomBlue : CyberDoom
 			TNT1 A 0;
 			goto Think;
 		Missile:
-			PLAY E 0 A_Jump(32, "Think");
-			PLAY E 2 A_FaceTarget();
-			PLAY F 1 bright B_Missile('NFGPlasmaBall');
-			PLAY F 0 bright A_MonsterRefire(0, "Think");
+			NIDL A 0 A_Jump(32, "Think");
+			NIDL A 2 A_FaceTarget();
+			NIDL A 1 bright B_Missile('NFGPlasmaBall');
+			NIDL A 0 bright A_MonsterRefire(0, "Think");
 			goto Missile;
 		Pain:
-			TNT1 A 0 A_Pain();
+			NJUM A 3 A_Pain();
+			NJUM BCDEFGHIJKLMNOPQR 1;
 			goto Think;
 		Death:
-			PLAY H 10 B_Die();
-			PLAY IJKLM 10;
-			PLAY N -1;
-			stop;
-		XDeath:
-			PLAY O 5 B_Die();
-			PLAY PQRSTUV 5;
-			PLAY W -1;
+			NDE1 A 3 B_Die();
+			NDE1 BCDEFGHIJKLMNOPQRSTUVWXYZ 3;
+			NDE2 ABCD 3;
+			NDE2 E -1;
 			stop;
 		Raise:
-			PLAY N 10 Initialize();
-			PLAY MKJIH 10;
+			NDE2 E 3 Initialize();
+			NDE2 DCBA 3;
+			NDE1 ZYXWVUTSRQPONMLKJIHGFEDCBA 3;
 			goto Think;
 		Think:
 			TNT1 A 0 B_Think();
 			loop; // Never, it is safe!
 		Idle:
-			PLAY AB 10;
+			NIDL ABCDEFGHIJK 3;
 			goto Think;
 		Jump:
-			PLAY A 5 B_JumpBegin();
-			PLAY B 5;
-			PLAY C 5;
-			PLAY D 5 B_JumpEnd();
+			NJUB A 3 B_JumpBegin();
+			NJUB BCDEFGHIJKLMNOP 3;
+			NJUB Q 3 B_JumpEnd();
 			goto Think;
 		Run:
-			PLAY ABCD 2;
+			NRUN ABCDEFGHIJKLMNOPQRSTUVWXYZ[ 3;
+			goto Think;
+		Swim:
+			NSWI ABCDEFGHIJ 3;
 			goto Think;
 		Walk:
-			PLAY ABCD 4;
+			NWAL ABCDEFGHIJK 3;
 			goto Think;
 	}
 }
 
-class CyberDoomGray : CyberDoom
+class SuperCyberSoldierWhite: SuperCyberSoldier
 {
-	override void InitBehavior()
+	override void Initialize()
 	{
-		MeleeState = null;
-		MissileState = FindState("Missile", true);
-		AttackStates.Push(MissileState);
-		TBehaviorTreeManager BehaviorTreeManager = TBehaviorTreeManager.GetInstance();
-		Behavior = BehaviorTreeManager.GetBehavior(self.GetClass());
-		if (!Behavior)
-		{
-			Behavior = TSequence.Create()
-				.AddBehavior(TCyberBasic_AINode_TimeFreeze.Create())
-				.AddBehavior(TCyberBasic_AINode_BasicLife.Create())
-				.AddBehavior(
-					TSelector.Create() // Strategy selector
-						.AddBehavior(TCyberBasic_AINode_SearchHelp.Create())
-						.AddBehavior(TCyberBasic_AINode_RepairVehicle.Create())
-						.AddBehavior(TCyberBasic_AINode_Goal.Create())
-						.AddBehavior(TCyberBasic_AINode_Fight.Create())
-						.AddBehavior(TCyberBasic_AINode_Gesture.Create())
-						.AddBehavior(TCyberBasic_AINode_Rest.Create())
-				)
-				.AddBehavior(
-					TSequence.Create()
-					.AddBehavior(TCyberBasic_AINode_ChaseMode.Create(8, 16))
-					.AddBehavior(
-						TSelector.Create() // Tactical selector
-							.AddBehavior(TCyberBasic_AINode_Jump.Create())
-							.AddBehavior(TCyberBasic_AINode_CoverZone.Create())
-							.AddBehavior(TCyberBasic_AINode_NextMove.Create())
-					)
-					.AddBehavior(TCyberBasic_AINode_Move.Create())
-					.AddBehavior(TCyberBasic_AINode_CloackingDevice.Create())
-				)
-				.AddBehavior(
-					TSequence.Create()
-					.AddBehavior(TCyberBasic_AINode_BasicCombat.Create())
-					.AddBehavior(TCyberBasic_AINode_CombatMissile.Create())
-				)
-			;
-			BehaviorTreeManager.AddBehavior(self.GetClass(), Behavior);
-		}
+		super.Initialize();
+		EnergyShield1 EnergyShield = EnergyShield1(FindInventory('EnergyShield1'));
+		EnergyShield.A_ChangeModel('SuperCyberSoldierWhite');
 	}
-	default
-	{
-		DropItem "Clip", 192;
-		DropItem "ClipBox", 32;
-		DropItem "VanillaRifle", 32;
-		DropItem "CyberArmor", 11;
-		Tag "Cyber Doom Gray";
-		Translation "CyberGray";
-	}
-	states
-	{
-		Spawn:
-			TNT1 A 0;
-			goto Think;
-		See:
-			TNT1 A 0;
-			goto Think;
-		Missile:
-			PLAY E 4 A_Jump(32, "Think");
-			PLAY F 4 bright B_Missile("SM_Bullet");
-			PLAY F 0 bright A_MonsterRefire(0, "Think");
-			goto Missile;
-		Pain:
-			TNT1 A 0 A_Pain();
-			goto Think;
-		Death:
-			PLAY H 10 B_Die();
-			PLAY IJKLM 10;
-			PLAY N -1;
-			stop;
-		XDeath:
-			PLAY O 5 B_Die();
-			PLAY PQRSTUV 5;
-			PLAY W -1;
-			stop;
-		Raise:
-			PLAY N 10 Initialize();
-			PLAY MKJIH 10;
-			goto Think;
-		Think:
-			TNT1 A 0 B_Think();
-			loop; // Never, it is safe!
-		Idle:
-			PLAY AB 10;
-			goto Think;
-		Jump:
-			PLAY A 5 B_JumpBegin();
-			PLAY B 5;
-			PLAY C 5;
-			PLAY D 5 B_JumpEnd();
-			goto Think;
-		RepairVehicle:
-			PLAY AB 6;
-			goto Think;
-		Run:
-			PLAY ABCD 2;
-			goto Think;
-		Walk:
-			PLAY ABCD 4;
-			goto Think;
-	}
-}
-
-class CyberDoomWhite : CyberDoom
-{
 	override void InitBehavior()
 	{
 		MeleeState = null;
@@ -557,7 +467,7 @@ class CyberDoomWhite : CyberDoom
 				)
 				.AddBehavior(
 					TSequence.Create()
-					.AddBehavior(TCyberBasic_AINode_ChaseMode.Create(8, 16))
+					.AddBehavior(TCyberBasic_AINode_ChaseMode.Create(6, 12))
 					.AddBehavior(
 						TSelector.Create() // Tactical selector
 							.AddBehavior(TCyberBasic_AINode_Jump.Create())
@@ -583,9 +493,8 @@ class CyberDoomWhite : CyberDoom
 		DropItem "VanillaRifle", 32;
 		DropItem "Berserk", 32;
 		DropItem "CyberArmor", 11;
-		Tag "Cyber Doom White (Medic)";
-		Translation "CyberWhite";
-		+TCustomNavMeshActor.NavMeshMedic;
+		Tag "Super Cyber Soldier White (Nurse)";
+		+TCustomNavMeshActor.NavMeshNurse;
 	}
 	states
 	{
@@ -596,53 +505,59 @@ class CyberDoomWhite : CyberDoom
 			TNT1 A 0;
 			goto Think;
 		Missile:
-			PLAY E 4 A_Jump(32, "Think");
-			PLAY F 4 bright B_Missile("SM_Bullet");
-			PLAY F 0 bright A_MonsterRefire(0, "Think");
+			NIDL A 4 A_Jump(32, "Think");
+			NIDL A 4 bright B_Missile("SM_Bullet");
+			NIDL A 0 bright A_MonsterRefire(0, "Think");
 			goto Missile;
 		Pain:
-			TNT1 A 0 A_Pain();
+			NJUM A 3 A_Pain();
+			NJUM BCDEFGHIJKLMNOPQR 1;
 			goto Think;
 		Death:
-			PLAY H 10 B_Die();
-			PLAY IJKLM 10;
-			PLAY N -1;
-			stop;
-		XDeath:
-			PLAY O 5 B_Die();
-			PLAY PQRSTUV 5;
-			PLAY W -1;
+			NDE1 A 3 B_Die();
+			NDE1 BCDEFGHIJKLMNOPQRSTUVWXYZ 3;
+			NDE2 ABCD 3;
+			NDE2 E -1;
 			stop;
 		Raise:
-			PLAY N 10 Initialize();
-			PLAY MKJIH 10;
+			NDE2 E 3 Initialize();
+			NDE2 DCBA 3;
+			NDE1 ZYXWVUTSRQPONMLKJIHGFEDCBA 3;
 			goto Think;
 		Think:
 			TNT1 A 0 B_Think();
 			loop; // Never, it is safe!
 		Heal:
-			PLAY AB 10;
+			NIDL ABCDEFGHIJK 3;
 			goto Think;
 		Idle:
-			PLAY AB 10;
+			NIDL ABCDEFGHIJK 3;
 			goto Think;
 		Jump:
-			PLAY A 5 B_JumpBegin();
-			PLAY B 5;
-			PLAY C 5;
-			PLAY D 5 B_JumpEnd();
+			NJUB A 3 B_JumpBegin();
+			NJUB BCDEFGHIJKLMNOP 3;
+			NJUB Q 3 B_JumpEnd();
 			goto Think;
 		Run:
-			PLAY ABCD 2;
+			NRUN ABCDEFGHIJKLMNOPQRSTUVWXYZ[ 3;
+			goto Think;
+		Swim:
+			NSWI ABCDEFGHIJ 3;
 			goto Think;
 		Walk:
-			PLAY ABCD 4;
+			NWAL ABCDEFGHIJK 3;
 			goto Think;
 	}
 }
 
-class CyberDoomBlack : CyberDoom
+class SuperCyberSoldierBlack: SuperCyberSoldier
 {
+	override void Initialize()
+	{
+		super.Initialize();
+		EnergyShield1 EnergyShield = EnergyShield1(FindInventory('EnergyShield1'));
+		EnergyShield.A_ChangeModel('SuperCyberSoldierBlack');
+	}
 	override void InitBehavior()
 	{
 		MeleeState = null;
@@ -665,7 +580,7 @@ class CyberDoomBlack : CyberDoom
 				)
 				.AddBehavior(
 					TSequence.Create()
-					.AddBehavior(TCyberBasic_AINode_ChaseMode.Create(8, 16))
+					.AddBehavior(TCyberBasic_AINode_ChaseMode.Create(6, 12))
 					.AddBehavior(
 						TSelector.Create() // Tactical selector
 							.AddBehavior(TCyberBasic_AINode_Jump.Create())
@@ -680,8 +595,8 @@ class CyberDoomBlack : CyberDoom
 					.AddBehavior(TCyberBasic_AINode_BasicCombat.Create())
 					.AddBehavior(
 						TUtilitySelector.Create()
-							.AddBehavior(CyberDoom_AINode_CombatPLC.Create())
-							.AddBehavior(CyberDoom_AINode_CombatSTD.Create())
+							.AddBehavior(SuperCyberSoldier_AINode_CombatPLC.Create())
+							.AddBehavior(SuperCyberSoldier_AINode_CombatSTD.Create())
 					)
 				)
 			;
@@ -697,8 +612,7 @@ class CyberDoomBlack : CyberDoom
 		DropItem "CyberBatteryPack", 32;
 		DropItem "PlasmaLaserCannon", 32;
 		DropItem "CyberArmor", 11;
-		Tag "Cyber Doom Black";
-		Translation "CyberBlack";
+		Tag "Super Cyber Soldier Black";
 	}
 	states
 	{
@@ -709,44 +623,44 @@ class CyberDoomBlack : CyberDoom
 			TNT1 A 0;
 			goto Think;
 		Missile:
-			PLAY E 2 A_Jump(16, "Think");
-			PLAY F 2 bright;
-			PLAY F 0 bright A_MonsterRefire(0, "Think");
+			NIDL A 2 A_Jump(16, "Think");
+			NIDL A 2 bright;
+			NIDL A 0 bright A_MonsterRefire(0, "Think");
 			goto Missile;
 		Pain:
-			TNT1 A 0 A_Pain();
+			NJUM A 3 A_Pain();
+			NJUM BCDEFGHIJKLMNOPQR 1;
 			goto Think;
 		Death:
-			PLAY H 10 B_Die();
-			PLAY IJKLM 10;
-			PLAY N -1;
-			stop;
-		XDeath:
-			PLAY O 5 B_Die();
-			PLAY PQRSTUV 5;
-			PLAY W -1;
+			NDE1 A 3 B_Die();
+			NDE1 BCDEFGHIJKLMNOPQRSTUVWXYZ 3;
+			NDE2 ABCD 3;
+			NDE2 E -1;
 			stop;
 		Raise:
-			PLAY N 10 Initialize();
-			PLAY MKJIH 10;
+			NDE2 E 3 Initialize();
+			NDE2 DCBA 3;
+			NDE1 ZYXWVUTSRQPONMLKJIHGFEDCBA 3;
 			goto Think;
 		Think:
 			TNT1 A 0 B_Think();
 			loop; // Never, it is safe!
 		Idle:
-			PLAY AB 10;
+			NIDL ABCDEFGHIJK 3;
 			goto Think;
 		Jump:
-			PLAY A 5 B_JumpBegin();
-			PLAY B 5;
-			PLAY C 5;
-			PLAY D 5 B_JumpEnd();
+			NJUB A 3 B_JumpBegin();
+			NJUB BCDEFGHIJKLMNOP 3;
+			NJUB Q 3 B_JumpEnd();
 			goto Think;
 		Run:
-			PLAY ABCD 2;
+			NRUN ABCDEFGHIJKLMNOPQRSTUVWXYZ[ 3;
+			goto Think;
+		Swim:
+			NSWI ABCDEFGHIJ 3;
 			goto Think;
 		Walk:
-			PLAY ABCD 4;
+			NWAL ABCDEFGHIJK 3;
 			goto Think;
 	}
 }

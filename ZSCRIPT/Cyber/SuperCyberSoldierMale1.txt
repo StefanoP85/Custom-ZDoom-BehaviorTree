@@ -20,6 +20,8 @@ class SuperCyberSoldierMale1_AINode_Gesture : TCyberBasic_AINode_Gesture
 	{
 		if (CustomCyberActor.CurrentWeapon)
 			return BH_FAILURE;
+		if (CustomCyberActor.IsInGestureAnimation())
+			return BH_RUNNING;
 		if ((CustomCyberActor.TargetAcquired) && (CustomCyberActor.PriorityQueue.Items.Size() == 0))
 		{
 			switch ( Random[SuperCyberSoldierMale1](1, 8) )
@@ -68,14 +70,15 @@ class SuperCyberSoldierMale1_AINode_Rest : TCyberBasic_AINode_Rest
 	override TStatus Update(TCustomCyberActor CustomCyberActor)
 	{
 		CustomCyberActor.Destination = CustomCyberActor.Pos;
-		if (CustomCyberActor.CurrentWeapon)
-		{
-			CustomCyberActor.UpdateStateLabel("Rifle.Idle");
-		}
-		else
-		{
-			CustomCyberActor.UpdateStateLabel("Idle");
-		}
+		if (!CustomCyberActor.IsInGestureAnimation())
+			if (CustomCyberActor.CurrentWeapon)
+			{
+				CustomCyberActor.UpdateStateLabel("Rifle.Idle");
+			}
+			else
+			{
+				CustomCyberActor.UpdateStateLabel("Idle");
+			}
 		return BH_SUCCESS;
 	}
 }
@@ -100,7 +103,7 @@ class SuperCyberSoldierMale1_AINode_ChaseMode : TBehavior
 		{
 			if (CustomCyberActor.CurrentWeapon)
 			{
-				CustomCyberActor.CurStateLabel = "Rifle.Run";
+				CustomCyberActor.UpdateStateLabel("Rifle.Run");
 				CustomCyberActor.Speed = RunSpeed;
 				return BH_SUCCESS;
 			}
@@ -113,7 +116,7 @@ class SuperCyberSoldierMale1_AINode_ChaseMode : TBehavior
 				|| (CustomCyberActor.IsFrightening(PriorityQueueItem.Monster))
 			)
 			{
-				CustomCyberActor.CurStateLabel = "RunFast";
+				CustomCyberActor.UpdateStateLabel("RunFast");
 				CustomCyberActor.Speed = RunSpeed;
 				return BH_SUCCESS;
 			}
@@ -123,7 +126,7 @@ class SuperCyberSoldierMale1_AINode_ChaseMode : TBehavior
 				|| (PriorityQueueItem.ThreatLevel > CustomCyberActor.ThreatLevelThreshold)
 			)
 			{
-				CustomCyberActor.CurStateLabel = "RunFast";
+				CustomCyberActor.UpdateStateLabel("RunFast");
 				CustomCyberActor.Speed = RunSpeed;
 				return BH_SUCCESS;
 			}
@@ -133,7 +136,7 @@ class SuperCyberSoldierMale1_AINode_ChaseMode : TBehavior
 				|| (PriorityQueueItem.ThreatLevel == CustomCyberActor.ThreatLevelThreshold)
 			)
 			{
-				CustomCyberActor.CurStateLabel = "RunFast";
+				CustomCyberActor.UpdateStateLabel("RunFast");
 				CustomCyberActor.Speed = RunSpeed;
 				return BH_SUCCESS;
 			}
@@ -143,11 +146,11 @@ class SuperCyberSoldierMale1_AINode_ChaseMode : TBehavior
 				|| (PriorityQueueItem.ThreatLevel >= THREAT_NORMAL)
 			)
 			{
-				CustomCyberActor.CurStateLabel = "Run";
+				CustomCyberActor.UpdateStateLabel("Run");
 				CustomCyberActor.Speed = RunSpeed;
 				return BH_SUCCESS;
 			}
-			CustomCyberActor.CurStateLabel = "Walk";
+			CustomCyberActor.UpdateStateLabel("Walk");
 			CustomCyberActor.Speed = WalkSpeed;
 			return BH_SUCCESS;
 		}
@@ -184,14 +187,14 @@ class SuperCyberSoldierMale1_AINode_NextMove : TCyberBasic_AINode_NextMove
 			(PriorityQueueItem.ExperiencedThreatLevel == ETL_DANGER)
 			|| (PriorityQueueItem.ThreatLevel == CustomCyberActor.ThreatLevelThreshold)
 		)
-			return 256;
+			return 384;
 		if
 		(
 			(PriorityQueueItem.ExperiencedThreatLevel == ETL_NORMAL)
 			|| (PriorityQueueItem.ThreatLevel >= THREAT_ABOVENORMAL)
 		)
-			return 128;
-		return 64;
+			return 256;
+		return 128;
 	}
 }
 
@@ -206,7 +209,7 @@ class SuperCyberSoldierMale1_AINode_Fireball : TUtilityBehavior
 	override double CalculateUtility(TCustomCyberActor CustomCyberActor)
 	{
 		TPriorityQueueItem PriorityQueueItem = CustomCyberActor.PriorityQueue.Items[0];
-		if (PriorityQueueItem.Monster.Health >= 5000)
+		if ((PriorityQueueItem.Monster.Health >= 5000) && (CustomCyberActor.Distance2DSquared(CustomCyberActor.Target) > 2000))
 			return 0.95;
 		return 0;
 	}
@@ -656,6 +659,8 @@ class SuperCyberSoldierMale1 : TCyberAdvanced abstract
 		AttackStates.Push(FindState("QuadPunch", true));
 		AttackStates.Push(FindState("Stomp", true));
 		AttackStates.Push(FindState("Rifle.Fire", true));
+		GestureAnimations.Push(FindState("Charge", true));
+		GestureAnimations.Push(FindState("Taunt", true));
 		TBehaviorTreeManager BehaviorTreeManager = TBehaviorTreeManager.GetInstance();
 		Behavior = BehaviorTreeManager.GetBehavior(self.GetClass());
 		if (!Behavior)
@@ -681,6 +686,7 @@ class SuperCyberSoldierMale1 : TCyberAdvanced abstract
 							.AddBehavior(SuperCyberSoldierMale1_AINode_NextMove.Create())
 					)
 					.AddBehavior(TCyberBasic_AINode_Move.Create())
+					.AddBehavior(TCyberBasic_AINode_CloackingDevice.Create())
 				)
 				.AddBehavior(
 					TSequence.Create()
@@ -919,7 +925,7 @@ class SuperCyberSoldierMale1 : TCyberAdvanced abstract
 			goto Think;
 		Stomp:
 			NST0 ABCDEFGHIJKLMN 1 B_MoveForward();
-			NST0 O 1 ThrustThingZ(0, 30, 0, 0);
+			NST0 O 1 A_ChangeVelocity(0, 0, 12, CVF_RELATIVE);
 			NST0 PQRSTUVWXYZ 1 B_MoveForward();
 			NST1 ABCDEFGHIJ 1 B_MoveForward();
 			NST1 K 1 B_Stomp();
@@ -995,6 +1001,8 @@ class SuperCyberSoldierMale1WhitePaint       : SuperCyberSoldierMale1
 		AttackStates.Push(FindState("QuadPunch", true));
 		AttackStates.Push(FindState("Stomp", true));
 		AttackStates.Push(FindState("Rifle.Fire", true));
+		GestureAnimations.Push(FindState("Charge", true));
+		GestureAnimations.Push(FindState("Taunt", true));
 		TBehaviorTreeManager BehaviorTreeManager = TBehaviorTreeManager.GetInstance();
 		Behavior = BehaviorTreeManager.GetBehavior(self.GetClass());
 		if (!Behavior)
@@ -1021,6 +1029,7 @@ class SuperCyberSoldierMale1WhitePaint       : SuperCyberSoldierMale1
 							.AddBehavior(SuperCyberSoldierFemale1_AINode_NextMove.Create())
 					)
 					.AddBehavior(TCyberBasic_AINode_Move.Create())
+					.AddBehavior(TCyberBasic_AINode_CloackingDevice.Create())
 				)
 				.AddBehavior(
 					TSequence.Create()

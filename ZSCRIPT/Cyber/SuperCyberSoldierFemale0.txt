@@ -133,14 +133,14 @@ class SuperCyberSoldierFemale0_AINode_NextMove : TCyberBasic_AINode_NextMove
 			(PriorityQueueItem.ExperiencedThreatLevel == ETL_DANGER)
 			|| (PriorityQueueItem.ThreatLevel == CustomCyberActor.ThreatLevelThreshold)
 		)
-			return 256;
+			return 384;
 		if
 		(
 			(PriorityQueueItem.ExperiencedThreatLevel == ETL_NORMAL)
 			|| (PriorityQueueItem.ThreatLevel >= THREAT_ABOVENORMAL)
 		)
-			return 128;
-		return 64;
+			return 256;
+		return 128;
 	}
 }
 
@@ -506,6 +506,7 @@ class SuperCyberSoldierFemale0 : TCyberAdvanced abstract
 							.AddBehavior(SuperCyberSoldierFemale0_AINode_NextMove.Create())
 					)
 					.AddBehavior(TCyberBasic_AINode_Move.Create())
+					.AddBehavior(TCyberBasic_AINode_CloackingDevice.Create())
 				)
 				.AddBehavior(
 					TSequence.Create()
@@ -663,7 +664,7 @@ class SuperCyberSoldierFemale0 : TCyberAdvanced abstract
 			goto Think;
 		Stomp:
 			NST0 ABCDEFGHIJKLMN 1 B_MoveForward();
-			NST0 O 1 ThrustThingZ(0, 30, 0, 0);
+			NST0 O 1 A_ChangeVelocity(0, 0, 12, CVF_RELATIVE);
 			NST0 PQRSTUVWXYZ 1 B_MoveForward();
 			NST1 ABCDEFGHIJ 1 B_MoveForward();
 			NST1 K 1 B_Stomp();
