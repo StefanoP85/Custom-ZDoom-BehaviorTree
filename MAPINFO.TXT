@@ -1,12 +1,3 @@
 GameInfo {
 	AddEventHandlers = "TNavMeshHandler", "TCyberEventHandler"
-	WeaponSlot = 1, "Fist", "Chainsaw"
-	WeaponSlot = 2, "Pistol", "Machinegun"
-	WeaponSlot = 3, "Shotgun", "SuperShotgun"
-	WeaponSlot = 4, "Chaingun", "SuperChaingun"
-	WeaponSlot = 5, "RocketLauncher", "GrenadeLauncher", "FlameThrower"
-	WeaponSlot = 6, "PlasmaRifle", "NFG", "Plasmagun"
-	WeaponSlot = 7, "BFG9000", "DarkMatterRifle", "DarkMatterGun"
-	WeaponSlot = 8, "CyberRifle", "LightningGun"
-	WeaponSlot = 9, "PlasmaLaserCannon", "SuperPlasmaLaserCannon"
 }
