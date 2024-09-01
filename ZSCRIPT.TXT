@@ -1,18 +1,10 @@
-// =============================================================================
-//
-// DOOM GAME NEW CLASSES AND BEHAVIORS
-//
-// =============================================================================
+version "4.12.0"
 
-Version "4.12.0"
-
-// -----------------------------------------------------------------------------
-// Items, weapons, armors
-// -----------------------------------------------------------------------------
-
+#include "ZSCRIPT/Cyber/Plasmagun.txt"
 #include "ZSCRIPT/Cyber/NFG.txt"
+#include "ZSCRIPT/Cyber/Shield.txt"
 #include "ZSCRIPT/Cyber/Common.txt"
+#include "ZSCRIPT/Cyber/CyberWeapons.txt"
 #include "ZSCRIPT/Cyber/NavMesh.txt"
 #include "ZSCRIPT/Cyber/CyberBase.txt"
-#include "ZSCRIPT/Cyber/CyberWeapons.txt"
 #include "ZSCRIPT/Cyber/CyberDoom.txt"

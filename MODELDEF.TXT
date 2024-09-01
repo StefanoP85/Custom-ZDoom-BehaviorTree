@@ -1,9 +1,4 @@
-// =============================================================================
-//
-// 3D MODELS
-//
-// =============================================================================
-
+#include "MODELDEFS/Shield.txt"
 #include "MODELDEFS/LightningGun.txt"
 #include "MODELDEFS/CyberRifle.txt"
 #include "MODELDEFS/PlasmaLaserCannon.txt"
