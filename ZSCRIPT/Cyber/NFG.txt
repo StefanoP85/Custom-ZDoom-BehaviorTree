@@ -59,7 +59,7 @@ class NFG : DoomWeapon
 		Weapon.AmmoGive 40;
 		Weapon.AmmoType "Cell";
 		Weapon.AmmoUse 1;
-		Weapon.SelectionOrder 111;
+		Weapon.SelectionOrder 250;
 		Weapon.SlotNumber 6;
 		Weapon.SlotPriority -2;
 	}

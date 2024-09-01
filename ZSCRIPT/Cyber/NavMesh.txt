@@ -100,6 +100,13 @@ class TNavMeshReader : TCustomNavMesh
 		}
 		return Result;
 	}
+	String PeekNextToken()
+	{
+		int SavedPosition = Position;
+		String Result = GetNextToken();
+		Position = SavedPosition;
+		return Result;
+	}
 	static TNavMeshReader Create(String SourceCode)
 	{
 		TNavMeshReader Result = New('TNavMeshReader');
@@ -136,6 +143,9 @@ class TNavMesh : TCustomNavMesh
 	int CellNumY;
 	Array<Int> Cells;
 	Array<Int> CellsIndex;
+	// Cover zones.
+	Array<Int> CoverLines;
+	Array<Int> CoverLinesIndex;
 	// Node list.
 	Array<TNavNode> NavNodes;
 	// Checks if a point is inside a convex polygon.
@@ -188,30 +198,11 @@ class TNavMesh : TCustomNavMesh
 					return PolygonIndex;
 				CurrentCellIndex++;
 			}
-			return -1;
-		}
-		// Search through all polygons.
-		int LineIndex = 0;
-		int PolygonIndex = 0;
-		int CurrentPolygonLine = 0;
-		bool NotFound = true;
-		while ((NotFound) && (LineIndex < LineCount))
-		{
-			// Check if the point is inside the polygon.
-			if (PointInPolygon(Point, PolygonIndex))
-				return PolygonIndex;
-			LineIndex++;
-			CurrentPolygonLine++;
-			if (CurrentPolygonLine >= NavPolygons[PolygonIndex].LineCount)
-			{
-				PolygonIndex++;
-				CurrentPolygonLine = 0;
-			}
 		}
 		return -1;
 	}
 	// Euclidean distance.
-	int SqrDistance(int X1, int Y1, int X2, int Y2)
+	int IntDistance(int X1, int Y1, int X2, int Y2)
 	{
 		Vector2 Result = (X1 - X2, Y1 - Y2);
 		return Result.Length();
@@ -223,8 +214,8 @@ class TNavMesh : TCustomNavMesh
 		Route.Clear();
 		if ((StartPolygon < 0) || (StopPolygon < 0) ||(StartPolygon == StopPolygon))
 			return false;
-		int StopX = (NavLines[NavPolygons[StopPolygon].LineFirst].X1 + NavLines[NavPolygons[StopPolygon].LineFirst].X2) >> 1;
-		int StopY = (NavLines[NavPolygons[StopPolygon].LineFirst].Y1 + NavLines[NavPolygons[StopPolygon].LineFirst].Y2) >> 1;
+		int StopX = (NavLines[NavPolygons[StopPolygon].LineFirst].X1 + NavLines[NavPolygons[StopPolygon].LineFirst].X2) / 2;
+		int StopY = (NavLines[NavPolygons[StopPolygon].LineFirst].Y1 + NavLines[NavPolygons[StopPolygon].LineFirst].Y2) / 2;
 		// Initialize the open list and the closed list.
 		Array<int> OpenList;
 		int CurrentNode;
@@ -279,8 +270,8 @@ class TNavMesh : TCustomNavMesh
 							TNavRoute NavRoute = New('TNavRoute');
 							NavRoute.Polygon = NodeIndex;
 							NavRoute.LinePortal = NavNodes[NodeIndex].LinePortal;
-							NavRoute.Position.X = (NavLines[NavNodes[NodeIndex].LinePortal].X1 + NavLines[NavNodes[NodeIndex].LinePortal].X2) >> 1;
-							NavRoute.Position.Y = (NavLines[NavNodes[NodeIndex].LinePortal].Y1 + NavLines[NavNodes[NodeIndex].LinePortal].Y2) >> 1;
+							NavRoute.Position.X = (NavLines[NavNodes[NodeIndex].LinePortal].X1 + NavLines[NavNodes[NodeIndex].LinePortal].X2) / 2;
+							NavRoute.Position.Y = (NavLines[NavNodes[NodeIndex].LinePortal].Y1 + NavLines[NavNodes[NodeIndex].LinePortal].Y2) / 2;
 							NavRoute.Position.Z = NavPolygons[NodeIndex].HeightFloor;
 							Route.Push(NavRoute);
 							NodeIndex = NavNodes[NodeIndex].Parent;
@@ -292,7 +283,7 @@ class TNavMesh : TCustomNavMesh
 					if (!NavNodes[NodeIndex].Closed)
 						if ((!NavNodes[NodeIndex].Visited) || ((NavNodes[CurrentNode].G + 1) < NavNodes[NodeIndex].G))
 						{
-							NavNodes[NodeIndex].H = SqrDistance(
+							NavNodes[NodeIndex].H = IntDistance(
 								(NavLines[LineIndex].X1 + NavLines[LineIndex].X2) / 2,
 								(NavLines[LineIndex].Y1 + NavLines[LineIndex].Y2) / 2,
 								StopX,
@@ -341,10 +332,217 @@ class TNavMesh : TCustomNavMesh
 		// A new route is needed.
 		return false;
 	}
+	// Search for cover.
+	bool SearchCover(int StartPolygon, Vector3 ThreatPosition, in out double CoverPointX, in out double CoverPointY, in out double CoverPointZ)
+	{
+		if (StartPolygon < 0)
+			return false;
+		// Fill the SearchPolygons and BlockingLines arrays.
+		Array<TNavRoute> Route;
+		int IntersectionCount;
+		double IntersectionDistances[3];
+		Vector3 IntersectionPoints[3];
+		int SearchPolygons[64];
+//		int BlockingLines[8];
+//		Vector3 BlockingLinePoint[8];
+//		int BlockingLinePolygon[8];
+//		int BlockingLineCount = 0;
+		int PolygonHead = 1;
+		int PolygonTail = 0;
+		SearchPolygons[0] = StartPolygon;
+		while ((PolygonHead > PolygonTail) && (PolygonHead < 64))
+		{
+			int LineFirst = NavPolygons[PolygonTail].LineFirst;
+			int LineIndex = 0;
+			while (LineIndex < NavPolygons[PolygonTail].LineCount)
+			{
+				if (NavLines[LineFirst + LineIndex].Portal >= 0)
+				{
+					if (PolygonHead < 64)
+					{
+						bool NotFound = true;
+						int Index = 0;
+						while ((NotFound) && (Index < PolygonHead))
+							if (SearchPolygons[Index] == NavLines[LineFirst + LineIndex].Portal)
+								NotFound = false;
+							else
+								Index++;
+						if (NotFound)
+						{
+							SearchPolygons[PolygonHead] = NavLines[LineFirst + LineIndex].Portal;
+							PolygonHead++;
+						}
+					}
+				}
+				else
+				{
+//					if (BlockingLineCount < 8)
+//					{
+						// Check for space behind the blocking line.
+						IntersectionCount = 0;
+						double LineMidPointX = (NavLines[LineFirst + LineIndex].X1 + NavLines[LineFirst + LineIndex].X2) / 2;
+						double LineMidPointY = (NavLines[LineFirst + LineIndex].Y1 + NavLines[LineFirst + LineIndex].Y2) / 2;
+						int LineMidPointXX = LineMidPointX;
+						int LineMidPointYY = LineMidPointY;
+						double DeltaX = ThreatPosition.X - LineMidPointX;
+						double DeltaY = ThreatPosition.Y - LineMidPointY;
+						double StepX;
+						double StepY;
+						if (Abs(DeltaX) < Abs(DeltaY))
+						{
+							StepX = 256 * DeltaX / DeltaY;
+							StepY = 256;
+						}
+						else
+						{
+							StepX = 256;
+							StepY = 256 * DeltaY / DeltaX;
+						}
+						int RayLineA = LineMidPointYY - ThreatPosition.Y;
+						int RayLineB = ThreatPosition.X - LineMidPointXX;
+						int RayLineC = RayLineA * ThreatPosition.X + RayLineB * ThreatPosition.Y;
+						int CellX = ((LineMidPointXX + 32768) >> 8) - CellOffsetX;
+						int CellY = ((LineMidPointYY + 32768) >> 8) - CellOffsetY;
+//						while ((CellX >= 0) && (CellX < CellNumX) && (CellY >= 0) && (CellY < CellNumY) && (BlockingLineCount < 8))
+						while ((CellX >= 0) && (CellX < CellNumX) && (CellY >= 0) && (CellY < CellNumY) && (IntersectionCount < 3))
+						{
+							int CellIndex = CellY * CellNumX + CellX;
+							int CurrentCellIndex = CellsIndex[CellIndex];
+							int NextCellIndex = CellsIndex[CellIndex + 1];
+							while (CurrentCellIndex < NextCellIndex)
+							{
+								int PolygonIndex = Cells[CurrentCellIndex];
+								int TestLineFirst = NavPolygons[PolygonIndex].LineFirst;
+								int TestLineIndex = 0;
+								int I = TestLineFirst;
+								while ((TestLineIndex < NavPolygons[PolygonIndex].LineCount) && (TestLineIndex != LineFirst + LineIndex) && (PolygonIndex != SearchPolygons[PolygonTail]))
+								{
+									int TestLineA = NavLines[I].Y1 - NavLines[I].Y2;
+									int TestLineB = NavLines[I].X2 - NavLines[I].X1;
+									int TestLineC = TestLineA * NavLines[I].X1 + TestLineB * NavLines[I].Y1;
+									int Determinant = RayLineA * TestLineB - TestLineA * RayLineB;
+									if (Determinant != 0)
+									{
+										// Test Line is not parallel to ThreatPoint - Mid point of blocking Line.
+										double IntersectionX = (RayLineC * TestLineB - TestLineC * RayLineB) / Determinant;
+										double IntersectionY = (RayLineA * TestLineC - TestLineA * RayLineC) / Determinant;
+										if ((IntersectionX >= Min(NavLines[I].X1, NavLines[I].X2)) && (IntersectionX <= Max(NavLines[I].X1, NavLines[I].X2)) && (IntersectionY >= Min(NavLines[I].Y1, NavLines[I].Y2)) && (IntersectionY <= Max(NavLines[I].Y1, NavLines[I].Y2)))
+										{
+											IntersectionPoints[IntersectionCount].X = IntersectionX;
+											IntersectionPoints[IntersectionCount].Y = IntersectionY;
+											IntersectionPoints[IntersectionCount].Z = NavPolygons[PolygonIndex].HeightFloor;
+											IntersectionDistances[IntersectionCount] = (IntersectionX - ThreatPosition.X) ** 2 + (IntersectionY - ThreatPosition.Y) ** 2;
+											IntersectionCount++;
+//											if ((SearchPolygon((IntersectionX, IntersectionY, NavPolygons[PolygonIndex].HeightFloor)) >= 0) && (SearchRoute(StartPolygon, PolygonIndex, Route)))
+//											{
+//												BlockingLines[BlockingLineCount] = I;
+//												BlockingLinePoint[BlockingLineCount].X = IntersectionX;
+//												BlockingLinePoint[BlockingLineCount].Y = IntersectionY;
+//												BlockingLinePoint[BlockingLineCount].Z = NavPolygons[PolygonIndex].HeightFloor;
+//												BlockingLinePolygon[BlockingLineCount] = PolygonIndex;
+//												BlockingLineCount++;
+//											}
+										}
+									}
+									I++;
+									TestLineIndex++;
+									if (IntersectionCount == 3)
+										break;
+								}
+								CurrentCellIndex++;
+								if (IntersectionCount == 3)
+									break;
+							}
+							LineMidPointX += StepX;
+							LineMidPointY += StepY;
+							LineMidPointXX = LineMidPointX;
+							LineMidPointYY = LineMidPointY;
+							CellX = ((LineMidPointXX + 32768) >> 8) - CellOffsetX;
+							CellY = ((LineMidPointYY + 32768) >> 8) - CellOffsetY;
+						}
+//					}
+					if (IntersectionCount > 0)
+					{
+						for (int I = 0; I < IntersectionCount - 2; I++)
+                            for (int J = I + 1; J < IntersectionCount - 1; J++)
+								if (IntersectionDistances[I] > IntersectionDistances[J])
+                                {
+									double TempDistance = IntersectionDistances[I];
+									IntersectionDistances[I] = IntersectionDistances[J];
+									IntersectionDistances[J] = TempDistance;
+									Vector3 TempPoint = IntersectionPoints[I];
+									IntersectionPoints[I] = IntersectionPoints[J];
+									IntersectionPoints[J] = TempPoint;
+                                }
+						Vector3 MidPoint;
+                        int K = 0;
+                        while (K < (IntersectionCount - 1))
+						{
+							MidPoint.X = (IntersectionPoints[K].X + IntersectionPoints[K + 1].X) / 2;
+							MidPoint.Y = (IntersectionPoints[K].Y + IntersectionPoints[K + 1].Y) / 2;
+							MidPoint.Z = (IntersectionPoints[K].Z + IntersectionPoints[K + 1].Z) / 2;
+							int MidPointPolygon = SearchPolygon(MidPoint);
+							if ((MidPointPolygon >= 0) && (SearchRoute(StartPolygon, MidPointPolygon, Route)))
+							{
+								int MidCellX = MidPoint.X;
+								int MidCellY = MidPoint.Y;
+								MidCellX = ((MidCellX + 32768) >> 8) - CellOffsetX;
+								MidCellY = ((MidCellY + 32768) >> 8) - CellOffsetY;
+								if ((MidCellX >= 0) && (MidCellX < CellNumX) && (MidCellY >= 0) && (MidCellY < CellNumY))
+								{
+									int MidCellIndex = MidCellY * CellNumX + MidCellX;
+									int CurrentPolyCellIndex = CellsIndex[MidCellIndex];
+									int NextPolyCellIndex = CellsIndex[MidCellIndex + 1];
+									while (CurrentPolyCellIndex < NextPolyCellIndex)
+									{
+										int MidPolygonIndex = Cells[CurrentPolyCellIndex];
+										if (MidPolygonIndex == MidPointPolygon)
+										{
+											CoverPointX = MidPoint.X;
+											CoverPointY = MidPoint.Y;
+											CoverPointZ = MidPoint.Z;
+											return true;
+										}
+										CurrentPolyCellIndex++;
+									}
+								}
+							}
+							K++;
+						}
+					}
+				}
+				LineIndex++;
+			}
+			PolygonTail++;
+		}
+		// Return the longest blocking line found.
+//		if (BlockingLineCount > 0)
+//		{
+//			int LongestLineIndex;
+//			int MaxLineLength = 0;
+//			int SqrLineLengths[8];
+//			for (int I = 0; I < BlockingLineCount; I++)
+//			{
+//				int DX = NavLines[BlockingLines[I]].X1 - NavLines[BlockingLines[I]].X2;
+//				int DY = NavLines[BlockingLines[I]].Y1 - NavLines[BlockingLines[I]].Y2;
+//				SqrLineLengths[I] = DX * DX + DY * DY;
+//				if (SqrLineLengths[I] > MaxLineLength)
+//				{
+//					LongestLineIndex = I;
+//					MaxLineLength = SqrLineLengths[I];
+//				}
+//			}
+//			CoverPointX = BlockingLinePoint[LongestLineIndex].X;
+//			CoverPointY = BlockingLinePoint[LongestLineIndex].Y;
+//			CoverPointZ = BlockingLinePoint[LongestLineIndex].Z;
+//			return true;
+//		}
+		return false;
+	}
 	// Creates an instance of NavMesh.
 	static TNavMesh Create(String MapName)
 	{
-		String LumpName = String.Format("navmeshes/%s.txt", MapName);
+		String LumpName = String.Format("NAVMESHES/%s.txt", MapName);
 		int LumpNumber = Wads.CheckNumForFullName(LumpName);
 		if (LumpNumber < 0)
 			return null;
@@ -353,6 +551,10 @@ class TNavMesh : TCustomNavMesh
 		if (!(SourceCode.Mid(0, 14) ~== "# ZDOOMNAVMESH"))
 			return null;
 		// Parse the source code.
+		int CurrentCell = 0;
+		int CurrentCellIndex = 0;
+		int CurrentCoverLine = 0;
+		int CurrentCoverLineIndex = 0;
 		TNavMeshReader NavMeshLexer = TNavMeshReader.Create(SourceCode);
 		TNavMesh Result = New('TNavMesh');
 		while (!NavMeshLexer.EOF())
@@ -392,32 +594,49 @@ class TNavMesh : TCustomNavMesh
 				Result.CellOffsetY = NavMeshLexer.GetNextToken().ToInt();
 				Result.CellNumX = NavMeshLexer.GetNextToken().ToInt();
 				Result.CellNumY = NavMeshLexer.GetNextToken().ToInt();
-				// Cells polygons command.
-				int CurrentCell = 0;
-				int CurrentCellIndex = 0;
-				while (!NavMeshLexer.EOF())
+			}
+			// Cells space partitioning command.
+			if (Token ~== "C")
+			{
+				int CellNumber = NavMeshLexer.GetNextToken().ToInt();
+				// Cells indexes management.
+				while (CurrentCellIndex <= CellNumber)
 				{
-					Token = NavMeshLexer.GetNextToken();
-					if (Token ~== "C")
-					{
-						int CellNumber = NavMeshLexer.GetNextToken().ToInt();
-						// Cells indexes management.
-						while (CurrentCellIndex <= CellNumber)
-						{
-							Result.CellsIndex.Push(CurrentCell);
-							CurrentCellIndex++;
-						}
-					}
-					else
-					{
-						Result.Cells.Push(Token.ToInt());
-						CurrentCell++;
-					}
+					Result.CellsIndex.Push(CurrentCell);
+					CurrentCellIndex++;
 				}
-				// Add last cell index.
-				Result.CellsIndex.Push(CurrentCell);
+				String NextToken = NavMeshLexer.PeekNextToken().Left(1);
+				while ((NextToken >= "0") && (NextToken <= "9"))
+				{
+					Result.Cells.Push(NavMeshLexer.GetNextToken().ToInt());
+					CurrentCell++;
+					NextToken = NavMeshLexer.PeekNextToken().Left(1);
+				}
+			}
+			// Cover zones command.
+			if (Token ~== "B")
+			{
+				int PolygonNumber = NavMeshLexer.GetNextToken().ToInt();
+				// Cells indexes management.
+				while (CurrentCoverLineIndex <= PolygonNumber)
+				{
+					Result.CoverLinesIndex.Push(CurrentCoverLine);
+					CurrentCoverLineIndex++;
+				}
+				String NextToken = NavMeshLexer.PeekNextToken().Left(1);
+				while ((NextToken >= "0") && (NextToken <= "9"))
+				{
+					Result.CoverLines.Push(NavMeshLexer.GetNextToken().ToInt());
+					CurrentCoverLine++;
+					NextToken = NavMeshLexer.PeekNextToken().Left(1);
+				}
 			}
 		}
+		// Add last cell index.
+		Result.CellsIndex.Push(CurrentCell);
+		// Add last cover zone index.
+		for (int I = Result.CoverLinesIndex.Size(); I <= Result.NavPolygons.Size(); I++)
+			Result.CoverLinesIndex.Push(CurrentCoverLine);
 		// Build the node list.
 		for (int I = 0; I < Result.NavPolygons.Size(); I++)
 		{
@@ -510,7 +729,7 @@ class TCustomNavMeshActor : KAI_Humanoid abstract
 	{
 		// Update the current position.
 		int CurrentSelfPolygon = NavMesh.SearchPolygon(Pos);
-		while ((RouteStep > 0) && ((CurrentSelfPolygon == Route[RouteStep].Polygon) || (NavMesh.SqrDistance(Pos.X, Pos.Y, Route[RouteStep].Position.X, Route[RouteStep].Position.Y) <= (Radius ** 2))))
+		while ((RouteStep > 0) && ((CurrentSelfPolygon == Route[RouteStep].Polygon) || (NavMesh.IntDistance(Pos.X, Pos.Y, Route[RouteStep].Position.X, Route[RouteStep].Position.Y) <= (Radius ** 2))))
 		{
 			RouteStep--;
 			if (RouteStep == 0)

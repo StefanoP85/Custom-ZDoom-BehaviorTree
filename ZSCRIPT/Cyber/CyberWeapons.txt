@@ -234,7 +234,7 @@ class CyberRifle : DoomWeapon
 			TNT1 A 0;
 			goto Idle;
 		Idle:
-			TNT1 A -1;
+			NADA A -1;
 			wait;
 		Ready:
 			PLCG A 1 A_WeaponReady();

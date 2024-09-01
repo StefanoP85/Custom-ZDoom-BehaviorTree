@@ -45,6 +45,27 @@ class SuperCyberSoldierMale0_AINode_ChaseMode : TBehavior
 	}
 	override TStatus Update(TCustomCyberActor CustomCyberActor)
 	{
+		if (CustomCyberActor.HelpGiver)
+		{
+			CustomCyberActor.CurStateLabel = "Run";
+			CustomCyberActor.Speed = RunSpeed;
+			return BH_SUCCESS;
+		}
+		if (CustomCyberActor.HelpReceiver)
+		{
+			if (CustomCyberActor.HelpReceiver is 'KAI_BaseVehicle')
+			{
+				CustomCyberActor.CurStateLabel = "Walk";
+				CustomCyberActor.Speed = WalkSpeed;
+				return BH_SUCCESS;
+			}
+			else
+			{
+				CustomCyberActor.CurStateLabel = "Run";
+				CustomCyberActor.Speed = RunSpeed;
+				return BH_SUCCESS;
+			}
+		}
 		if (CustomCyberActor.PriorityQueue.Items.Size() > 0)
 		{
 			if (CustomCyberActor.CurrentWeapon)
@@ -168,28 +189,28 @@ class SuperCyberSoldierMale0_AINode_Hand1 : TUtilityBehavior
 				return 0.4;
 				break;
 			case THREAT_VERYDANGEROUS:
-				return 0.35;
+				return 0.4;
 				break;
 			case THREAT_DANGEROUS:
-				return 0.3;
+				return 0.4;
 				break;
 			case THREAT_ABOVENORMAL:
-				return 0.25;
+				return 0;
 				break;
 			case THREAT_NORMAL:
-				return 0.2;
+				return 0;
 				break;
 			case THREAT_MILD:
-				return 0.2;
+				return 0;
 				break;
 			case THREAT_LOW:
-				return 0.15;
+				return 0;
 				break;
 			case THREAT_VERYLOW:
-				return 0.1;
+				return 0;
 				break;
 			case THREAT_NONE:
-				return 0.05;
+				return 0;
 				break;
 			default:
 				return 0;
@@ -203,10 +224,11 @@ class SuperCyberSoldierMale0_AINode_Hand1 : TUtilityBehavior
 			return BH_RUNNING;
 		if (CustomCyberActor.CurrentWeapon)
 		{
-			CustomCyberActor.A_ChangeModel("", 1, "MODELS/CyberSoldierMale", "NoWeapon.iqm", 1, "", "");
+			CustomCyberActor.A_ChangeModel("", 1, "MODELS/CyberSoldierFemale", "NoWeapon.iqm", 1, "", "");
 			CustomCyberActor.CurrentWeapon = null;
 		}
-		CustomCyberActor.UpdateStateLabel("Hand1.Boost", true);
+		CustomCyberActor.UpdateStateLabel("Hand1", true);
+		CustomCyberActor.GiveInventory('ShieldBoost', 1);
 		return BH_SUCCESS;
 	}
 }
@@ -223,40 +245,40 @@ class SuperCyberSoldierMale0_AINode_Hand2 : TUtilityBehavior
 	{
 		TPriorityQueueItem PriorityQueueItem = CustomCyberActor.PriorityQueue.Items[0];
 		if (PriorityQueueItem.ExperiencedThreatLevel == ETL_CRITICAL)
-			return 0.05;
+			return 0.3;
 		if (PriorityQueueItem.ExperiencedThreatLevel == ETL_DANGER)
-			return 0.05;
+			return 0.3;
 		switch (PriorityQueueItem.ThreatLevel)
 		{
 			case THREAT_UNSTOPPABLE:
-				return 0.05;
+				return 0;
 				break;
 			case THREAT_SUPERDANGER:
-				return 0.05;
+				return 0;
 				break;
 			case THREAT_VERYDANGEROUS:
-				return 0.1;
+				return 0;
 				break;
 			case THREAT_DANGEROUS:
-				return 0.1;
+				return 0;
 				break;
 			case THREAT_ABOVENORMAL:
-				return 0.2;
+				return 0.3;
 				break;
 			case THREAT_NORMAL:
-				return 0.25;
+				return 0.3;
 				break;
 			case THREAT_MILD:
 				return 0.3;
 				break;
 			case THREAT_LOW:
-				return 0.35;
+				return 0.3;
 				break;
 			case THREAT_VERYLOW:
-				return 0.4;
+				return 0.3;
 				break;
 			case THREAT_NONE:
-				return 0.45;
+				return 0.3;
 				break;
 			default:
 				return 0;
@@ -270,10 +292,11 @@ class SuperCyberSoldierMale0_AINode_Hand2 : TUtilityBehavior
 			return BH_RUNNING;
 		if (CustomCyberActor.CurrentWeapon)
 		{
-			CustomCyberActor.A_ChangeModel("", 1, "MODELS/CyberSoldierMale", "NoWeapon.iqm", 1, "", "");
+			CustomCyberActor.A_ChangeModel("", 1, "MODELS/CyberSoldierFemale", "NoWeapon.iqm", 1, "", "");
 			CustomCyberActor.CurrentWeapon = null;
 		}
-		CustomCyberActor.UpdateStateLabel("Hand2.Boost", true);
+		CustomCyberActor.UpdateStateLabel("Hand2", true);
+		CustomCyberActor.GiveInventory('ShieldBoost', 1);
 		return BH_SUCCESS;
 	}
 }
@@ -306,28 +329,28 @@ class SuperCyberSoldierMale0_AINode_Punch : TUtilityBehavior
 					return 0;
 					break;
 				case THREAT_VERYDANGEROUS:
-					return 0.1;
+					return 0;
 					break;
 				case THREAT_DANGEROUS:
-					return 0.2;
+					return 0;
 					break;
 				case THREAT_ABOVENORMAL:
-					return 0.4;
+					return 0.7;
 					break;
 				case THREAT_NORMAL:
-					return 0.6;
+					return 0.7;
 					break;
 				case THREAT_MILD:
 					return 0.7;
 					break;
 				case THREAT_LOW:
-					return 0.8;
+					return 0.7;
 					break;
 				case THREAT_VERYLOW:
-					return 0.85;
+					return 0.7;
 					break;
 				case THREAT_NONE:
-					return 0.9;
+					return 0.7;
 					break;
 				default:
 					return 0;
@@ -343,10 +366,11 @@ class SuperCyberSoldierMale0_AINode_Punch : TUtilityBehavior
 			return BH_RUNNING;
 		if (CustomCyberActor.CurrentWeapon)
 		{
-			CustomCyberActor.A_ChangeModel("", 1, "MODELS/CyberSoldierMale", "NoWeapon.iqm", 1, "", "");
+			CustomCyberActor.A_ChangeModel("", 1, "MODELS/CyberSoldierFemale", "NoWeapon.iqm", 1, "", "");
 			CustomCyberActor.CurrentWeapon = null;
 		}
 		CustomCyberActor.UpdateStateLabel("Punch", true);
+		CustomCyberActor.GiveInventory('ShieldBoost', 1);
 		return BH_SUCCESS;
 	}
 }
@@ -365,7 +389,7 @@ class SuperCyberSoldierMale0_AINode_Stomp : TUtilityBehavior
 	{
 		Actor Target = CustomCyberActor.Target;
 		if (CustomCyberActor.Distance2DSquared(CustomCyberActor.Target) <= MaxDistance)
-			if ((Target.Height <= 60) && (Target.default.Health <= 200))
+			if ((Target.Height <= 60) && (Target.default.Health <= 256))
 				return 0.9;
 		return 0;
 	}
@@ -375,10 +399,11 @@ class SuperCyberSoldierMale0_AINode_Stomp : TUtilityBehavior
 			return BH_RUNNING;
 		if (CustomCyberActor.CurrentWeapon)
 		{
-			CustomCyberActor.A_ChangeModel("", 1, "MODELS/CyberSoldierMale", "NoWeapon.iqm", 1, "", "");
+			CustomCyberActor.A_ChangeModel("", 1, "MODELS/CyberSoldierFemale", "NoWeapon.iqm", 1, "", "");
 			CustomCyberActor.CurrentWeapon = null;
 		}
 		CustomCyberActor.UpdateStateLabel("Stomp", true);
+		CustomCyberActor.GiveInventory('ShieldBoost', 1);
 		return BH_SUCCESS;
 	}
 }
@@ -404,14 +429,12 @@ class SuperCyberSoldierMale0_AINode_CombatLG : TUtilityBehavior
 	}
 	override TStatus Update(TCustomCyberActor CustomCyberActor)
 	{
-		if (CustomCyberActor.WeaponCooldown)
-			CustomCyberActor.WeaponCooldown--;
 		if (CustomCyberActor.WeaponCooldown == 0)
 		{
 			CustomCyberActor.UpdateStateLabel("Rifle.Fire", true);
 			if (CustomCyberActor.CurrentWeapon != 'LightningGun')
 			{
-				CustomCyberActor.A_ChangeModel("", 1, "MODELS/CyberSoldierMale", "LightningGun.iqm", 1, "MODELS/LightningGun", "LightningGun.png");
+				CustomCyberActor.A_ChangeModel("", 1, "MODELS/CyberSoldierFemale", "LightningGun.iqm", 1, "MODELS/LightningGun", "LightningGun.png");
 				CustomCyberActor.CurrentWeapon = 'LightningGun';
 				CustomCyberActor.WeaponCooldown = 2;
 				return BH_RUNNING;
@@ -437,21 +460,17 @@ class SuperCyberSoldierMale0_AINode_CombatCR : TUtilityBehavior
 	override double CalculateUtility(TCustomCyberActor CustomCyberActor)
 	{
 		if (CustomCyberActor.Distance2DSquared(CustomCyberActor.Target) <= MaxDistance)
-		{
 			return 0.5;
-		}
 		return 0;
 	}
 	override TStatus Update(TCustomCyberActor CustomCyberActor)
 	{
-		if (CustomCyberActor.WeaponCooldown)
-			CustomCyberActor.WeaponCooldown--;
 		if (CustomCyberActor.WeaponCooldown == 0)
 		{
 			CustomCyberActor.UpdateStateLabel("Rifle.Fire", true);
 			if (CustomCyberActor.CurrentWeapon != 'CyberRifle')
 			{
-				CustomCyberActor.A_ChangeModel("", 1, "MODELS/CyberSoldierMale", "CyberRifle.iqm", 1, "MODELS/CyberRifle", "BaseTexture.png");
+				CustomCyberActor.A_ChangeModel("", 1, "MODELS/CyberSoldierFemale", "CyberRifle.iqm", 1, "MODELS/CyberRifle", "BaseTexture.png");
 				CustomCyberActor.CurrentWeapon = 'CyberRifle';
 				CustomCyberActor.WeaponCooldown = 2;
 				return BH_RUNNING;
@@ -476,8 +495,8 @@ class SuperCyberSoldierMale0 : TCyberAdvanced abstract
 		MissileState = FindState("Missile", true);
 		AttackStates.Push(MeleeState);
 		AttackStates.Push(MissileState);
-		AttackStates.Push(FindState("Hand1.Boost", true));
-		AttackStates.Push(FindState("Hand2.Boost", true));
+		AttackStates.Push(FindState("Hand1", true));
+		AttackStates.Push(FindState("Hand2", true));
 		AttackStates.Push(FindState("Punch", true));
 		AttackStates.Push(FindState("Stomp", true));
 		AttackStates.Push(FindState("Rifle.Fire", true));
@@ -530,45 +549,55 @@ class SuperCyberSoldierMale0 : TCyberAdvanced abstract
 		super.Initialize();
 		A_GiveInventory('EnergyShield1', 1);
 	}
-	void B_IdleNormal()
+	virtual void B_IdleNormal()
 	{
 		CurrentWeapon = null;
 		A_ChangeModel("", 1, "MODELS/CyberSoldierMale", "NoWeapon.iqm", 1, "", "");
 		UpdateStateLabel("Idle");
 	}
-	void B_MissileHand1()
+	virtual void B_MissileHand1()
 	{
 		if (Target)
 		{
 			B_Missile('CyberBallSmall', 64);
 		}
 	}
-	void B_MissileHand2()
+	virtual void B_MissileHand2()
 	{
 		if (Target)
 		{
 			B_Missile('SmallKiBall', 40);
 		}
 	}
-	void B_Punch()
+	virtual void B_Punch()
 	{
 		if (Target)
 			A_CustomMeleeAttack(Random(1, 8) * 8, "SuperSoldierMale/Melee");
 	}
-	void B_Stomp()
+	virtual void B_Stomp()
 	{
-		if ((Target) && (Target.Height <= 60) && (Target.default.Health) <= 200 && (Target.default.Health > 0))
+		if ((Target) && (Target.Height <= 60) && (Target.default.Health) <= 256 && (Target.default.Health > 0))
 		{
 			if ( Distance2D(Target) <= Radius + Target.Radius + 40 )
 			{
-				Target.GiveInventory('TStompToken', 1);
-				A_KillTarget("Crush", KILS_FOILINVUL);
+				Target.GiveInventory('StompToken', 1);
+				Target.DamageMobj(self, self, Target.Health, "Normal", DMG_FORCED);
 			}
 		}
+	}
+	virtual void B_Pain()
+	{
+		A_Pain();
+		A_GiveInventory('ShieldBoost', 1);
 	}
 	default
 	{
 		CameraHeight 48;
+		DropItem "CyberBattery", 192;
+		DropItem "CyberBatteryPack", 32;
+		DropItem "LightningGun", 64;
+		DropItem "CyberRifle", 64;
+		DropItem "SuperCyberArmor", 11;
 		Health 625;
 		Height 64;
 		Mass 10000;
@@ -600,12 +629,12 @@ class SuperCyberSoldierMale0 : TCyberAdvanced abstract
 			TNT1 A 0;
 			goto Think;
 		Pain:
-			NPA0 A 1 A_Pain();
+			NPA0 A 1 B_Pain();
 			NPA0 BCDEFGHIJKLMNOPQRSTUVWXYZ 1;
 			NPA1 ABCDEFGHIJK 1;
 			goto Think;
 		Death:
-			NDE0 A 1 A_ScreamAndUnblock();
+			NDE0 A 1 B_Die();
 			NDE0 BCDEFGHIJKLMNOPQRSTUVWXYZ 1;
 			NDE1 ABCDEFGHIJKLMNOPQRSTUVWXYZ 1;
 			NDE2 ABCDEFGHIJKLMNOPQRSTUVWXYZ 1;
@@ -626,19 +655,19 @@ class SuperCyberSoldierMale0 : TCyberAdvanced abstract
 		Think:
 			TNT1 A 0 B_Think();
 			loop; // Never, it is safe!
-		Hand1.Boost:
-			NH10 ABCDEFGHIJKLMNOPQRSTUVWXYZ 1 Light("ShieldBoostState") A_FaceTarget();
-			NH11 ABC 1 Light("ShieldBoostState") A_FaceTarget();
-			NH11 D 1 Light("ShieldBoostState") B_MissileHand1();
-			NH11 EFGHIJKLMNOPQRSTUVWXYZ 1 Light("ShieldBoostState") A_FaceTarget();
-			NH12 ABCDEFGHIJKLMNOPQR 1 Light("ShieldBoostState") A_FaceTarget();
+		Hand1:
+			NH10 ABCDEFGHIJKLMNOPQRSTUVWXYZ 1 A_FaceTarget();
+			NH11 ABC 1 A_FaceTarget();
+			NH11 D 1 B_MissileHand1();
+			NH11 EFGHIJKLMNOPQRSTUVWXYZ 1 A_FaceTarget();
+			NH12 ABCDEFGHIJKLMNOPQR 1 A_FaceTarget();
 			goto Think;
-		Hand2.Boost:
-			NH20 ABCDEFGHIJKLMNOPQRSTUVWXYZ 1 Light("ShieldBoostState") A_FaceTarget();
-			NH21 ABCD 1 Light("ShieldBoostState") A_FaceTarget();
-			NH21 EFGHIJKLMNOPQRSTUVWXYZ 1 Light("ShieldBoostState") B_MissileHand2();
-			NH22 ABCDEFGHIJKLMNOPQRSTUVWXYZ 1 Light("ShieldBoostState") B_MissileHand2();
-			NH23 ABCDEFGHIJKLMNOPQRSTUVW 1 Light("ShieldBoostState") A_FaceTarget();
+		Hand2:
+			NH20 ABCDEFGHIJKLMNOPQRSTUVWXYZ 1 A_FaceTarget();
+			NH21 ABCD 1 A_FaceTarget();
+			NH21 EFGHIJKLMNOPQRSTUVWXYZ 1 B_MissileHand2();
+			NH22 ABCDEFGHIJKLMNOPQRSTUVWXYZ 1 B_MissileHand2();
+			NH23 ABCDEFGHIJKLMNOPQRSTUVW 1 A_FaceTarget();
 			goto Think;
 		Idle:
 			NID0 ABCDEFGHIJKLMNOPQRSTUVWXYZ 1;
@@ -709,7 +738,7 @@ class SuperCyberSoldierMale0 : TCyberAdvanced abstract
 			WFI0 A 1 A_Jump(16, "Think");
 			WFI0 BCDEFGH 1 A_FaceTarget();
 			WFI0 I 1 A_MonsterRefire(0, "Think");
-			goto Think;
+			goto Rifle.Fire;
 	}
 }
 class SuperCyberSoldierMale0Black  : SuperCyberSoldierMale0 {}

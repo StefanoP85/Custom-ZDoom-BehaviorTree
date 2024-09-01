@@ -24,8 +24,6 @@ class SuperCyberCrash_AINode_CombatSTD : TUtilityBehavior
 	{
 		if (CustomCyberActor.IsInAttackState())
 		{
-			if (CustomCyberActor.WeaponCooldown)
-				CustomCyberActor.WeaponCooldown--;
 			if (CustomCyberActor.WeaponCooldown == 0)
 			{
 				CustomCyberActor.B_Missile('SM_Bullet');
@@ -62,8 +60,6 @@ class SuperCyberCrash_AINode_CombatPLC : TUtilityBehavior
 	{
 		if (CustomCyberActor.IsInAttackState())
 		{
-			if (CustomCyberActor.WeaponCooldown)
-				CustomCyberActor.WeaponCooldown--;
 			if (CustomCyberActor.WeaponCooldown == 0)
 			{
 				CustomCyberActor.A_StartSound("weapons/plc", CHAN_WEAPON);
@@ -109,6 +105,72 @@ class SuperCyberCrash : TCyberBasic abstract
 		DeathSound "CyberCrash/Death";
 		PainSound "CyberCrash/Pain";
 		SeeSound "CyberCrash/Sight";
+	}
+	states
+	{
+		Spawn:
+			TNT1 A 0;
+			goto Think;
+		See:
+			TNT1 A 0;
+			goto Think;
+		Pain:
+			NJUM A 3 A_Pain();
+			NJUM BCDEFGHIJKLMNOPQRST 1;
+			goto Think;
+		Death:
+			TNT1 A 0 A_Jump(256, "Death.1", "Death.2", "Death.3");
+			goto Think;
+		Death.1:
+			ND10 A 3 B_Die();
+			ND10 BCDEFGHIJKLMNOPQRSTUVWXYZ 3;
+			ND11 ABC 3;
+			ND11 D -1;
+			stop;
+		Death.2:
+			ND20 A 3 B_Die();
+			ND20 BCDEFGHIJKLMNOPQ 3;
+			ND20 R -1;
+			stop;
+		Death.3:
+			ND30 A 3 B_Die();
+			ND30 BCDEFGHIJKLMNOPQRSTU 3;
+			ND30 V -1;
+			stop;
+		Raise:
+			NDE2 E 3 Initialize();
+			NDE2 DCBA 3;
+			NDE1 ZYXWVUTSRQPONMLKJIHGFEDCBA 3;
+			goto Think;
+		Think:
+			TNT1 A 0 B_Think();
+			loop; // Never, it is safe!
+		Idle:
+			NIDL ABCDEFGHIJKLM 3;
+			goto Think;
+		IdleCrouch:
+			NIDC ABCDEFGHIJKLMNOPQ 3;
+			goto Think;
+		Jump:
+			NJUB A 3 B_JumpBegin();
+			NJUB BCDEFGHIJKLMN 3;
+			NJUB O 3 B_JumpEnd();
+			goto Think;
+		Run:
+			NRUN ABCDEFGHIJ 3;
+			goto Think;
+		Swim:
+			NSWI ABCDEFGHIJ 3;
+			goto Think;
+		Walk:
+			NWAL ABCDEFGHIJKLMNOPQ 3;
+			goto Think;
+		WalkBack:
+			NWAB ABCDEFGHIJ 3;
+			goto Think;
+		WalkCrouch:
+			NWAC ABCDEFGHIJKLMNOP 3;
+			goto Think;
 	}
 }
 
@@ -171,50 +233,12 @@ class SuperCyberCrashGreen : SuperCyberCrash
 	}
 	states
 	{
-		Spawn:
-			TNT1 A 0;
-			goto Think;
-		See:
-			TNT1 A 0;
-			goto Think;
 		Missile:
 			NIDL A 0 A_Jump(32, "Think");
 			NIDL A 7 A_FaceTarget();
 			NIDL A 1 bright B_Missile('ArachnotronPlasma');
 			NIDL A 0 bright A_MonsterRefire(0, "Think");
 			goto Missile;
-		Pain:
-			NJUM A 3 A_Pain();
-			NJUM BCDEFGHIJKLMNOPQRST 1;
-			goto Think;
-		Death:
-			NDE1 A 3 B_Die();
-			NDE1 BCDEFGHIJKLMNOPQRSTUVWXYZ 3;
-			NDE2 ABCD 3;
-			NDE2 E -1;
-			stop;
-		Raise:
-			NDE2 E 3 Initialize();
-			NDE2 DCBA 3;
-			NDE1 ZYXWVUTSRQPONMLKJIHGFEDCBA 3;
-			goto Think;
-		Think:
-			TNT1 A 0 B_Think();
-			loop; // Never, it is safe!
-		Idle:
-			NIDL ABCDEFGHIJK 3;
-			goto Think;
-		Jump:
-			NJUB A 3 B_JumpBegin();
-			NJUB BCDEFGHIJKLMNOP 3;
-			NJUB Q 3 B_JumpEnd();
-			goto Think;
-		Run:
-			NRUN ABCDEFGHIJKLMNOPQRST 3;
-			goto Think;
-		Walk:
-			NWAL ABCDEFGHIJKLMNOPQ 3;
-			goto Think;
 	}
 }
 
@@ -277,50 +301,12 @@ class SuperCyberCrashRed : SuperCyberCrash
 	}
 	states
 	{
-		Spawn:
-			TNT1 A 0;
-			goto Think;
-		See:
-			TNT1 A 0;
-			goto Think;
 		Missile:
 			NIDL A 0 A_Jump(32, "Think");
 			NIDL A 2 A_FaceTarget();
 			NIDL A 1 bright B_Missile('PlasmaBall');
 			NIDL A 0 bright A_MonsterRefire(0, "Think");
 			goto Missile;
-		Pain:
-			NJUM A 3 A_Pain();
-			NJUM BCDEFGHIJKLMNOPQRST 1;
-			goto Think;
-		Death:
-			NDE1 A 3 B_Die();
-			NDE1 BCDEFGHIJKLMNOPQRSTUVWXYZ 3;
-			NDE2 ABCD 3;
-			NDE2 E -1;
-			stop;
-		Raise:
-			NDE2 E 3 Initialize();
-			NDE2 DCBA 3;
-			NDE1 ZYXWVUTSRQPONMLKJIHGFEDCBA 3;
-			goto Think;
-		Think:
-			TNT1 A 0 B_Think();
-			loop; // Never, it is safe!
-		Idle:
-			NIDL ABCDEFGHIJK 3;
-			goto Think;
-		Jump:
-			NJUB A 3 B_JumpBegin();
-			NJUB BCDEFGHIJKLMNOP 3;
-			NJUB Q 3 B_JumpEnd();
-			goto Think;
-		Run:
-			NRUN ABCDEFGHIJKLMNOPQRST 3;
-			goto Think;
-		Walk:
-			NWAL ABCDEFGHIJKLMNOPQ 3;
-			goto Think;
 	}
 }
 
@@ -383,50 +369,12 @@ class SuperCyberCrashBlue : SuperCyberCrash
 	}
 	states
 	{
-		Spawn:
-			TNT1 A 0;
-			goto Think;
-		See:
-			TNT1 A 0;
-			goto Think;
 		Missile:
 			NIDL A 0 A_Jump(32, "Think");
 			NIDL A 2 A_FaceTarget();
 			NIDL A 1 bright B_Missile('NFGPlasmaBall');
 			NIDL A 0 bright A_MonsterRefire(0, "Think");
 			goto Missile;
-		Pain:
-			NJUM A 3 A_Pain();
-			NJUM BCDEFGHIJKLMNOPQRST 1;
-			goto Think;
-		Death:
-			NDE1 A 3 B_Die();
-			NDE1 BCDEFGHIJKLMNOPQRSTUVWXYZ 3;
-			NDE2 ABCD 3;
-			NDE2 E -1;
-			stop;
-		Raise:
-			NDE2 E 3 Initialize();
-			NDE2 DCBA 3;
-			NDE1 ZYXWVUTSRQPONMLKJIHGFEDCBA 3;
-			goto Think;
-		Think:
-			TNT1 A 0 B_Think();
-			loop; // Never, it is safe!
-		Idle:
-			NIDL ABCDEFGHIJK 3;
-			goto Think;
-		Jump:
-			NJUB A 3 B_JumpBegin();
-			NJUB BCDEFGHIJKLMNOP 3;
-			NJUB Q 3 B_JumpEnd();
-			goto Think;
-		Run:
-			NRUN ABCDEFGHIJKLMNOPQRST 3;
-			goto Think;
-		Walk:
-			NWAL ABCDEFGHIJKLMNOPQ 3;
-			goto Think;
 	}
 }
 
@@ -492,52 +440,11 @@ class SuperCyberCrashWhite: SuperCyberCrash
 	}
 	states
 	{
-		Spawn:
-			TNT1 A 0;
-			goto Think;
-		See:
-			TNT1 A 0;
-			goto Think;
 		Missile:
 			NIDL A 4 A_Jump(32, "Think");
 			NIDL A 4 bright B_Missile("SM_Bullet");
 			NIDL A 0 bright A_MonsterRefire(0, "Think");
 			goto Missile;
-		Pain:
-			NJUM A 3 A_Pain();
-			NJUM BCDEFGHIJKLMNOPQRST 1;
-			goto Think;
-		Death:
-			NDE1 A 3 B_Die();
-			NDE1 BCDEFGHIJKLMNOPQRSTUVWXYZ 3;
-			NDE2 ABCD 3;
-			NDE2 E -1;
-			stop;
-		Raise:
-			NDE2 E 3 Initialize();
-			NDE2 DCBA 3;
-			NDE1 ZYXWVUTSRQPONMLKJIHGFEDCBA 3;
-			goto Think;
-		Think:
-			TNT1 A 0 B_Think();
-			loop; // Never, it is safe!
-		Heal:
-			NIDL ABCDEFGHIJK 3;
-			goto Think;
-		Idle:
-			NIDL ABCDEFGHIJK 3;
-			goto Think;
-		Jump:
-			NJUB A 3 B_JumpBegin();
-			NJUB BCDEFGHIJKLMNOP 3;
-			NJUB Q 3 B_JumpEnd();
-			goto Think;
-		Run:
-			NRUN ABCDEFGHIJKLMNOPQRST 3;
-			goto Think;
-		Walk:
-			NWAL ABCDEFGHIJKLMNOPQ 3;
-			goto Think;
 	}
 }
 
@@ -607,48 +514,10 @@ class SuperCyberCrashBlack: SuperCyberCrash
 	}
 	states
 	{
-		Spawn:
-			TNT1 A 0;
-			goto Think;
-		See:
-			TNT1 A 0;
-			goto Think;
 		Missile:
 			NIDL A 2 A_Jump(16, "Think");
 			NIDL A 2 bright;
 			NIDL A 0 bright A_MonsterRefire(0, "Think");
 			goto Missile;
-		Pain:
-			NJUM A 3 A_Pain();
-			NJUM BCDEFGHIJKLMNOPQRST 1;
-			goto Think;
-		Death:
-			NDE1 A 3 B_Die();
-			NDE1 BCDEFGHIJKLMNOPQRSTUVWXYZ 3;
-			NDE2 ABCD 3;
-			NDE2 E -1;
-			stop;
-		Raise:
-			NDE2 E 3 Initialize();
-			NDE2 DCBA 3;
-			NDE1 ZYXWVUTSRQPONMLKJIHGFEDCBA 3;
-			goto Think;
-		Think:
-			TNT1 A 0 B_Think();
-			loop; // Never, it is safe!
-		Idle:
-			NIDL ABCDEFGHIJK 3;
-			goto Think;
-		Jump:
-			NJUB A 3 B_JumpBegin();
-			NJUB BCDEFGHIJKLMNOP 3;
-			NJUB Q 3 B_JumpEnd();
-			goto Think;
-		Run:
-			NRUN ABCDEFGHIJKLMNOPQRST 3;
-			goto Think;
-		Walk:
-			NWAL ABCDEFGHIJKLMNOPQ 3;
-			goto Think;
 	}
 }

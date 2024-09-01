@@ -1,19 +1,150 @@
 //==============================================================================
 //
-// Cyber Crash.
+// Cyber SpecOps.
 //
 //==============================================================================
+
+//------------------------------------------------------------------------------
+// Projectile.
+//------------------------------------------------------------------------------
+
+class HandGrenade : Actor
+{
+	default
+	{
+		BounceCount 10;
+		BounceFactor 0.5;
+		Damage 10;
+		Height 8;
+		Obituary "%o ate a SpecOps's grenade.";
+		Radius 6;
+		SeeSound "zspecops/grbounce";
+		Speed 20;
+		Projectile;
+		+DoomBounce;
+		+GrenadeTrail;
+		-NoGravity;
+	}
+	states
+	{
+		Spawn:
+			GRND AAA 35;
+		Death:
+			MISL C 0 Bright A_StartSound("weapons/rocklx");
+			MISL C 5 Bright A_Explode(64, 64, 1);
+			MISL D 4 Bright;
+			MISL E 3 Bright;
+			stop;
+	}
+}
+
+//------------------------------------------------------------------------------
+// Ray-cast for Hand grenade attacks.
+//------------------------------------------------------------------------------
+
+class HandGrenadeRayCast: KAI_LOFRaycast
+{
+	// Splash radius of the grenade.
+	const SplashRadius = 64;
+	static HandGrenadeRayCast Create()
+	{
+		HandGrenadeRayCast Result = New('HandGrenadeRayCast');
+		return Result;
+	}
+	override ETraceStatus TraceCallback()
+	{
+		if (!Results.HitActor)
+			return Trace_Skip;
+		if (Results.HitActor == Shooter)
+			return Trace_Skip;
+		if ((!IsCollidable(Results.HitActor)) || (IsDead(Results.HitActor)))
+			return Trace_Skip;
+		// Check if explosion is too close.
+		if (Results.Distance <= SplashRadius)
+		{
+			BadLOF = true;
+			return Trace_Stop;
+		}
+		// Check if a friendly actor is hit.
+		if (!IsHostile(Shooter, Results.HitActor))
+		{
+			BadLOF = true;
+			return Trace_Stop;
+		}
+		AddToMobjList(Results.HitActor);
+		// Check if friendly actors are hit in the blast radius.
+		BlockThingsIterator BIT = BlockThingsIterator.CreateFromPos(Results.HitPos.X, Results.HitPos.Y, Results.HitPos.Z, 0, 64, true);
+		while (BIT.Next())
+		{
+			if (!BIT.Thing)
+				continue;
+			if (!IsCollidable(BIT.Thing))
+				continue;
+			if (IsDead(BIT.Thing))
+				continue;
+			if (!IsHostile(Shooter, BIT.Thing))
+			{
+				BadLOF = true;
+				BIT.Destroy();
+				return Trace_Stop;
+			}
+		}
+		BIT.Destroy();
+		return Trace_Skip;
+	}
+}
 
 // -----------------------------------------------------------------------------
 // AI nodes.
 // -----------------------------------------------------------------------------
 
-// Node CombatSTD: check if fit for a missile attack.
-class CyberCrash_AINode_CombatSTD : TUtilityBehavior
+// Node CombatGrenade: check if safe for a grenade attack.
+class CyberSpecOps_AINode_CombatGrenade : TUtilityBehavior
 {
-	static CyberCrash_AINode_CombatSTD Create()
+	static CyberSpecOps_AINode_CombatGrenade Create()
 	{
-		CyberCrash_AINode_CombatSTD Result = New('CyberCrash_AINode_CombatSTD');
+		CyberSpecOps_AINode_CombatGrenade Result = New('CyberSpecOps_AINode_CombatGrenade');
+		return Result;
+	}
+	override double CalculateUtility(TCustomCyberActor CustomCyberActor)
+	{
+		if ((CustomCyberActor.Distance2DSquared(CustomCyberActor.Target) < (128 * 128)) || (CustomCyberActor.Distance2DSquared(CustomCyberActor.Target) > (384 * 384)))
+			return 0;
+		double Result = 0.75;
+		Vector3 Direction = (CustomCyberActor.AngleToVector(CustomCyberActor.Angle, Cos(CustomCyberActor.Pitch)), -Sin(CustomCyberActor.Pitch));
+		HandGrenadeRayCast Check = New('HandGrenadeRayCast');
+		Check.Shooter = CustomCyberActor;
+		Check.Trace(CustomCyberActor.Pos, CustomCyberActor.CurSector, Direction, 384, 0);
+		if (Check.BadLOF)
+			Result = 0;
+		bool TargetHit = false;
+		foreach (TestActor : Check.Mobjs)
+			if (CustomCyberActor.Target == TestActor)
+				TargetHit = true;
+		Check.Destroy();
+		if (!TargetHit)
+			Result = 0;
+		return Result;
+	}
+	override TStatus Update(TCustomCyberActor CustomCyberActor)
+	{
+		if (CustomCyberActor.IsInAttackState())
+			return BH_RUNNING;
+		if (CustomCyberActor.CheckMissileRange())
+		{
+			CustomCyberActor.UpdateStateLabel("TossGrenade", true);
+			CustomCyberActor.WeaponCooldown = 0;
+		}
+		return BH_SUCCESS;
+	}
+}
+
+// Node CombatSTD: check if fit for a missile attack.
+class CyberSpecOps_AINode_CombatSTD : TUtilityBehavior
+{
+	static CyberSpecOps_AINode_CombatSTD Create()
+	{
+		CyberSpecOps_AINode_CombatSTD Result = New('CyberSpecOps_AINode_CombatSTD');
 		return Result;
 	}
 	override double CalculateUtility(TCustomCyberActor CustomCyberActor)
@@ -41,12 +172,12 @@ class CyberCrash_AINode_CombatSTD : TUtilityBehavior
 }
 
 // Node CombatPLC: check if fit for a missile attack.
-class CyberCrash_AINode_CombatPLC : TUtilityBehavior
+class CyberSpecOps_AINode_CombatPLC : TUtilityBehavior
 {
 	double MaxDistance; // Actually is squared for performance reasons.
-	static CyberCrash_AINode_CombatPLC Create(double MaxDistance = 1024)
+	static CyberSpecOps_AINode_CombatPLC Create(double MaxDistance = 1024)
 	{
-		CyberCrash_AINode_CombatPLC Result = New('CyberCrash_AINode_CombatPLC');
+		CyberSpecOps_AINode_CombatPLC Result = New('CyberSpecOps_AINode_CombatPLC');
 		Result.MaxDistance = MaxDistance ** 2;
 		return Result;
 	}
@@ -78,10 +209,10 @@ class CyberCrash_AINode_CombatPLC : TUtilityBehavior
 }
 
 // -----------------------------------------------------------------------------
-// CyberCrash.
+// SpecOps.
 // -----------------------------------------------------------------------------
 
-class CyberCrash : TCyberBasic abstract
+class CyberSpecOps : TCyberBasic abstract
 {
 	override void Initialize()
 	{
@@ -96,16 +227,16 @@ class CyberCrash : TCyberBasic abstract
 		Mass 100;
 		PainChance 30;
 		Radius 20;
-		Speed 16;
-		Tag "Cyber Crash";
+		Speed 10;
+		Tag "Cyber Soldier";
 		KAI_Actor.AggressionMultiplier 1.0;
 		KAI_Actor.ThreatLevel THREAT_DANGEROUS;
 		KAI_Actor.ThreatLevelThreshold THREAT_VERYDANGEROUS;
-		ActiveSound "CyberCrash/Active";
-		AttackSound "CyberCrash/Attack";
-		DeathSound "CyberCrash/Death";
-		PainSound "CyberCrash/Pain";
-		SeeSound "CyberCrash/Sight";
+		ActiveSound "CyberSpecOps/Active";
+		AttackSound "CyberSpecOps/Attack";
+		DeathSound "CyberSpecOps/Death";
+		PainSound "CyberSpecOps/Pain";
+		SeeSound "CyberSpecOps/Sight";
 	}
 	states
 	{
@@ -119,47 +250,53 @@ class CyberCrash : TCyberBasic abstract
 			TNT1 A 0 A_Pain();
 			goto Think;
 		Death:
-			PLAX H 10 B_Die();
-			PLAX IJKLM 10;
-			PLAX N -1;
+			SPOP H 10 B_Die();
+			SPOP IJK 10;
+			SPOP L -1;
 			stop;
 		XDeath:
-			PLAX O 5 B_Die();
-			PLAX PQRSTUV 5;
-			PLAX W -1;
+			SPOP M 10 B_Die();
+			SPOP NOP 10;
+			SPOP Q -1;
 			stop;
 		Raise:
-			PLAX N 10 Initialize();
-			PLAX MKJIH 10;
+			SPOP N 10 Initialize();
+			SPOP MKJIH 10;
 			goto Think;
 		Think:
 			TNT1 A 0 B_Think();
 			loop; // Never, it is safe!
 		Idle:
-			PLAX AB 10;
+			SPOP AB 10;
 			goto Think;
 		Jump:
-			PLAX A 5 B_JumpBegin();
-			PLAX B 5;
-			PLAX C 5;
-			PLAX D 5 B_JumpEnd();
+			SPOP A 5 B_JumpBegin();
+			SPOP B 5;
+			SPOP C 5;
+			SPOP D 5 B_JumpEnd();
 			goto Think;
 		Run:
-			PLAX ABCD 2;
+			SPOP ABCD 2;
+			goto Think;
+		TossGrenade:
+			SPOP R 5 A_FaceTarget();
+			SPOP S 5 A_SpawnProjectile('HandGrenade');
+			SPOP T 5 A_FaceTarget();
 			goto Think;
 		Walk:
-			PLAX ABCD 4;
+			SPOP ABCD 4;
 			goto Think;
 	}
 }
 
-class CyberCrashGreen : CyberCrash
+class CyberSpecOpsGreen : CyberSpecOps
 {
 	override void InitBehavior()
 	{
 		MeleeState = null;
 		MissileState = FindState("Missile", true);
 		AttackStates.Push(MissileState);
+		AttackStates.Push(FindState("TossGrenade", true));
 		TBehaviorTreeManager BehaviorTreeManager = TBehaviorTreeManager.GetInstance();
 		Behavior = BehaviorTreeManager.GetBehavior(self.GetClass());
 		if (!Behavior)
@@ -177,324 +314,7 @@ class CyberCrashGreen : CyberCrash
 				)
 				.AddBehavior(
 					TSequence.Create()
-					.AddBehavior(TCyberBasic_AINode_ChaseMode.Create(8, 16))
-					.AddBehavior(
-						TSelector.Create() // Tactical selector
-							.AddBehavior(TCyberBasic_AINode_Jump.Create())
-							.AddBehavior(TCyberBasic_AINode_CoverZone.Create())
-							.AddBehavior(TCyberBasic_AINode_NextMove.Create())
-					)
-					.AddBehavior(TCyberBasic_AINode_Move.Create())
-					.AddBehavior(TCyberBasic_AINode_CloackingDevice.Create())
-				)
-				.AddBehavior(
-					TSequence.Create()
-					.AddBehavior(TCyberBasic_AINode_BasicCombat.Create())
-					.AddBehavior(TCyberBasic_AINode_CombatMissile.Create())
-				)
-			;
-			BehaviorTreeManager.AddBehavior(self.GetClass(), Behavior);
-		}
-	}
-	default
-	{
-		DropItem "Cell", 192;
-		DropItem "CellPack", 32;
-		DropItem "PlasmaGun", 32;
-		DropItem "CyberArmor", 11;
-		Tag "Cyber Crash Green";
-		Translation "CyberGreen";
-	}
-	states
-	{
-		Missile:
-			PLAX E 0 A_Jump(32, "Think");
-			PLAX E 7 A_FaceTarget();
-			PLAX F 1 bright B_Missile('ArachnotronPlasma');
-			PLAX F 0 bright A_MonsterRefire(0, "Think");
-			goto Missile;
-	}
-}
-
-class CyberCrashRed : CyberCrash
-{
-	override void InitBehavior()
-	{
-		MeleeState = null;
-		MissileState = FindState("Missile", true);
-		AttackStates.Push(MissileState);
-		TBehaviorTreeManager BehaviorTreeManager = TBehaviorTreeManager.GetInstance();
-		Behavior = BehaviorTreeManager.GetBehavior(self.GetClass());
-		if (!Behavior)
-		{
-			Behavior = TSequence.Create()
-				.AddBehavior(TCyberBasic_AINode_TimeFreeze.Create())
-				.AddBehavior(TCyberBasic_AINode_BasicLife.Create())
-				.AddBehavior(
-					TSelector.Create() // Strategy selector
-						.AddBehavior(TCyberBasic_AINode_SearchHelp.Create())
-						.AddBehavior(TCyberBasic_AINode_Goal.Create())
-						.AddBehavior(TCyberBasic_AINode_Fight.Create())
-						.AddBehavior(TCyberBasic_AINode_Gesture.Create())
-						.AddBehavior(TCyberBasic_AINode_Rest.Create())
-				)
-				.AddBehavior(
-					TSequence.Create()
-					.AddBehavior(TCyberBasic_AINode_ChaseMode.Create(8, 16))
-					.AddBehavior(
-						TSelector.Create() // Tactical selector
-							.AddBehavior(TCyberBasic_AINode_Jump.Create())
-							.AddBehavior(TCyberBasic_AINode_CoverZone.Create())
-							.AddBehavior(TCyberBasic_AINode_NextMove.Create())
-					)
-					.AddBehavior(TCyberBasic_AINode_Move.Create())
-					.AddBehavior(TCyberBasic_AINode_CloackingDevice.Create())
-				)
-				.AddBehavior(
-					TSequence.Create()
-					.AddBehavior(TCyberBasic_AINode_BasicCombat.Create())
-					.AddBehavior(TCyberBasic_AINode_CombatMissile.Create())
-				)
-			;
-			BehaviorTreeManager.AddBehavior(self.GetClass(), Behavior);
-		}
-	}
-	default
-	{
-		DropItem "Cell", 192;
-		DropItem "CellPack", 32;
-		DropItem "PlasmaRifle", 32;
-		DropItem "CyberArmor", 11;
-		Tag "Cyber Crash Red";
-		Translation "CyberRed";
-	}
-	states
-	{
-		Missile:
-			PLAX E 0 A_Jump(32, "Think");
-			PLAX E 2 A_FaceTarget();
-			PLAX F 1 bright B_Missile('PlasmaBall');
-			PLAX F 0 bright A_MonsterRefire(0, "Think");
-			goto Missile;
-	}
-}
-
-class CyberCrashBlue : CyberCrash
-{
-	override void InitBehavior()
-	{
-		MeleeState = null;
-		MissileState = FindState("Missile", true);
-		AttackStates.Push(MissileState);
-		TBehaviorTreeManager BehaviorTreeManager = TBehaviorTreeManager.GetInstance();
-		Behavior = BehaviorTreeManager.GetBehavior(self.GetClass());
-		if (!Behavior)
-		{
-			Behavior = TSequence.Create()
-				.AddBehavior(TCyberBasic_AINode_TimeFreeze.Create())
-				.AddBehavior(TCyberBasic_AINode_BasicLife.Create())
-				.AddBehavior(
-					TSelector.Create() // Strategy selector
-						.AddBehavior(TCyberBasic_AINode_SearchHelp.Create())
-						.AddBehavior(TCyberBasic_AINode_Goal.Create())
-						.AddBehavior(TCyberBasic_AINode_Fight.Create())
-						.AddBehavior(TCyberBasic_AINode_Gesture.Create())
-						.AddBehavior(TCyberBasic_AINode_Rest.Create())
-				)
-				.AddBehavior(
-					TSequence.Create()
-					.AddBehavior(TCyberBasic_AINode_ChaseMode.Create(8, 16))
-					.AddBehavior(
-						TSelector.Create() // Tactical selector
-							.AddBehavior(TCyberBasic_AINode_Jump.Create())
-							.AddBehavior(TCyberBasic_AINode_CoverZone.Create())
-							.AddBehavior(TCyberBasic_AINode_NextMove.Create())
-					)
-					.AddBehavior(TCyberBasic_AINode_Move.Create())
-					.AddBehavior(TCyberBasic_AINode_CloackingDevice.Create())
-				)
-				.AddBehavior(
-					TSequence.Create()
-					.AddBehavior(TCyberBasic_AINode_BasicCombat.Create())
-					.AddBehavior(TCyberBasic_AINode_CombatMissile.Create())
-				)
-			;
-			BehaviorTreeManager.AddBehavior(self.GetClass(), Behavior);
-		}
-	}
-	default
-	{
-		DropItem "Cell", 192;
-		DropItem "CellPack", 32;
-		DropItem "NFG", 32;
-		DropItem "CyberArmor", 11;
-		Tag "Cyber Crash Blue";
-		Translation "CyberBlue";
-	}
-	states
-	{
-		Missile:
-			PLAX E 0 A_Jump(32, "Think");
-			PLAX E 2 A_FaceTarget();
-			PLAX F 1 bright B_Missile('NFGPlasmaBall');
-			PLAX F 0 bright A_MonsterRefire(0, "Think");
-			goto Missile;
-	}
-}
-
-class CyberCrashGray : CyberCrash
-{
-	override void InitBehavior()
-	{
-		MeleeState = null;
-		MissileState = FindState("Missile", true);
-		AttackStates.Push(MissileState);
-		TBehaviorTreeManager BehaviorTreeManager = TBehaviorTreeManager.GetInstance();
-		Behavior = BehaviorTreeManager.GetBehavior(self.GetClass());
-		if (!Behavior)
-		{
-			Behavior = TSequence.Create()
-				.AddBehavior(TCyberBasic_AINode_TimeFreeze.Create())
-				.AddBehavior(TCyberBasic_AINode_BasicLife.Create())
-				.AddBehavior(
-					TSelector.Create() // Strategy selector
-						.AddBehavior(TCyberBasic_AINode_SearchHelp.Create())
-						.AddBehavior(TCyberBasic_AINode_RepairVehicle.Create())
-						.AddBehavior(TCyberBasic_AINode_Goal.Create())
-						.AddBehavior(TCyberBasic_AINode_Fight.Create())
-						.AddBehavior(TCyberBasic_AINode_Gesture.Create())
-						.AddBehavior(TCyberBasic_AINode_Rest.Create())
-				)
-				.AddBehavior(
-					TSequence.Create()
-					.AddBehavior(TCyberBasic_AINode_ChaseMode.Create(8, 16))
-					.AddBehavior(
-						TSelector.Create() // Tactical selector
-							.AddBehavior(TCyberBasic_AINode_Jump.Create())
-							.AddBehavior(TCyberBasic_AINode_CoverZone.Create())
-							.AddBehavior(TCyberBasic_AINode_NextMove.Create())
-					)
-					.AddBehavior(TCyberBasic_AINode_Move.Create())
-					.AddBehavior(TCyberBasic_AINode_CloackingDevice.Create())
-				)
-				.AddBehavior(
-					TSequence.Create()
-					.AddBehavior(TCyberBasic_AINode_BasicCombat.Create())
-					.AddBehavior(TCyberBasic_AINode_CombatMissile.Create())
-				)
-			;
-			BehaviorTreeManager.AddBehavior(self.GetClass(), Behavior);
-		}
-	}
-	default
-	{
-		DropItem "Clip", 192;
-		DropItem "ClipBox", 32;
-		DropItem "VanillaRifle", 32;
-		DropItem "CyberArmor", 11;
-		Tag "Cyber Crash Gray";
-		Translation "CyberGray";
-	}
-	states
-	{
-		Missile:
-			PLAX E 4 A_Jump(32, "Think");
-			PLAX F 4 bright B_Missile("SM_Bullet");
-			PLAX F 0 bright A_MonsterRefire(0, "Think");
-			goto Missile;
-	}
-}
-
-class CyberCrashWhite : CyberCrash
-{
-	override void InitBehavior()
-	{
-		MeleeState = null;
-		MissileState = FindState("Missile", true);
-		AttackStates.Push(MissileState);
-		TBehaviorTreeManager BehaviorTreeManager = TBehaviorTreeManager.GetInstance();
-		Behavior = BehaviorTreeManager.GetBehavior(self.GetClass());
-		if (!Behavior)
-		{
-			Behavior = TSequence.Create()
-				.AddBehavior(TCyberBasic_AINode_TimeFreeze.Create())
-				.AddBehavior(TCyberBasic_AINode_BasicLife.Create())
-				.AddBehavior(
-					TSelector.Create() // Strategy selector
-						.AddBehavior(TCyberBasic_AINode_SearchHelp.Create())
-						.AddBehavior(TCyberBasic_AINode_GiveAid.Create())
-						.AddBehavior(TCyberBasic_AINode_Goal.Create())
-						.AddBehavior(TCyberBasic_AINode_Fight.Create())
-						.AddBehavior(TCyberBasic_AINode_Gesture.Create())
-						.AddBehavior(TCyberBasic_AINode_Rest.Create())
-				)
-				.AddBehavior(
-					TSequence.Create()
-					.AddBehavior(TCyberBasic_AINode_ChaseMode.Create(8, 16))
-					.AddBehavior(
-						TSelector.Create() // Tactical selector
-							.AddBehavior(TCyberBasic_AINode_Jump.Create())
-							.AddBehavior(TCyberBasic_AINode_CoverZone.Create())
-							.AddBehavior(TCyberBasic_AINode_NextMove.Create())
-					)
-					.AddBehavior(TCyberBasic_AINode_Move.Create())
-					.AddBehavior(TCyberBasic_AINode_CloackingDevice.Create())
-				)
-				.AddBehavior(
-					TSequence.Create()
-					.AddBehavior(TCyberBasic_AINode_BasicCombat.Create())
-					.AddBehavior(TCyberBasic_AINode_CombatMissile.Create())
-				)
-			;
-			BehaviorTreeManager.AddBehavior(self.GetClass(), Behavior);
-		}
-	}
-	default
-	{
-		DropItem "Clip", 192;
-		DropItem "ClipBox", 32;
-		DropItem "VanillaRifle", 32;
-		DropItem "Berserk", 32;
-		DropItem "CyberArmor", 11;
-		Tag "Cyber Crash White (Medic)";
-		Translation "CyberWhite";
-		+TCustomNavMeshActor.NavMeshMedic;
-	}
-	states
-	{
-		Missile:
-			PLAX E 4 A_Jump(32, "Think");
-			PLAX F 4 bright B_Missile("SM_Bullet");
-			PLAX F 0 bright A_MonsterRefire(0, "Think");
-			goto Missile;
-	}
-}
-
-class CyberCrashBlack : CyberCrash
-{
-	override void InitBehavior()
-	{
-		MeleeState = null;
-		MissileState = FindState("Missile", true);
-		AttackStates.Push(MissileState);
-		TBehaviorTreeManager BehaviorTreeManager = TBehaviorTreeManager.GetInstance();
-		Behavior = BehaviorTreeManager.GetBehavior(self.GetClass());
-		if (!Behavior)
-		{
-			Behavior = TSequence.Create()
-				.AddBehavior(TCyberBasic_AINode_TimeFreeze.Create())
-				.AddBehavior(TCyberBasic_AINode_BasicLife.Create())
-				.AddBehavior(
-					TSelector.Create() // Strategy selector
-						.AddBehavior(TCyberBasic_AINode_SearchHelp.Create())
-						.AddBehavior(TCyberBasic_AINode_Goal.Create())
-						.AddBehavior(TCyberBasic_AINode_Fight.Create())
-						.AddBehavior(TCyberBasic_AINode_Gesture.Create())
-						.AddBehavior(TCyberBasic_AINode_Rest.Create())
-				)
-				.AddBehavior(
-					TSequence.Create()
-					.AddBehavior(TCyberBasic_AINode_ChaseMode.Create(8, 16))
+					.AddBehavior(TCyberBasic_AINode_ChaseMode.Create(5, 10))
 					.AddBehavior(
 						TSelector.Create() // Tactical selector
 							.AddBehavior(TCyberBasic_AINode_Jump.Create())
@@ -509,8 +329,213 @@ class CyberCrashBlack : CyberCrash
 					.AddBehavior(TCyberBasic_AINode_BasicCombat.Create())
 					.AddBehavior(
 						TUtilitySelector.Create()
-							.AddBehavior(CyberCrash_AINode_CombatPLC.Create())
-							.AddBehavior(CyberCrash_AINode_CombatSTD.Create())
+							.AddBehavior(CyberSpecOps_AINode_CombatGrenade.Create())
+							.AddBehavior(TCyberBasic_AINode_CombatMissile.Create())
+					)
+				)
+			;
+			BehaviorTreeManager.AddBehavior(self.GetClass(), Behavior);
+		}
+	}
+	default
+	{
+		DropItem "Cell", 192;
+		DropItem "CellPack", 32;
+		DropItem "PlasmaGun", 32;
+		DropItem "CyberArmor", 11;
+		Tag "Cyber Soldier Green";
+		Translation "CyberGreen";
+	}
+	states
+	{
+		Missile:
+			SPOP E 0 A_Jump(64, "Think");
+			SPOP E 7 A_FaceTarget();
+			SPOP F 1 bright B_Missile('ArachnotronPlasma');
+			SPOP F 0 bright A_MonsterRefire(0, "Think");
+			goto Missile;
+	}
+}
+
+class CyberSpecOpsRed : CyberSpecOps
+{
+	override void InitBehavior()
+	{
+		MeleeState = null;
+		MissileState = FindState("Missile", true);
+		AttackStates.Push(MissileState);
+		AttackStates.Push(FindState("TossGrenade", true));
+		TBehaviorTreeManager BehaviorTreeManager = TBehaviorTreeManager.GetInstance();
+		Behavior = BehaviorTreeManager.GetBehavior(self.GetClass());
+		if (!Behavior)
+		{
+			Behavior = TSequence.Create()
+				.AddBehavior(TCyberBasic_AINode_TimeFreeze.Create())
+				.AddBehavior(TCyberBasic_AINode_BasicLife.Create())
+				.AddBehavior(
+					TSelector.Create() // Strategy selector
+						.AddBehavior(TCyberBasic_AINode_SearchHelp.Create())
+						.AddBehavior(TCyberBasic_AINode_Goal.Create())
+						.AddBehavior(TCyberBasic_AINode_Fight.Create())
+						.AddBehavior(TCyberBasic_AINode_Gesture.Create())
+						.AddBehavior(TCyberBasic_AINode_Rest.Create())
+				)
+				.AddBehavior(
+					TSequence.Create()
+					.AddBehavior(TCyberBasic_AINode_ChaseMode.Create(5, 10))
+					.AddBehavior(
+						TSelector.Create() // Tactical selector
+							.AddBehavior(TCyberBasic_AINode_Jump.Create())
+							.AddBehavior(TCyberBasic_AINode_CoverZone.Create())
+							.AddBehavior(TCyberBasic_AINode_NextMove.Create())
+					)
+					.AddBehavior(TCyberBasic_AINode_Move.Create())
+					.AddBehavior(TCyberBasic_AINode_CloackingDevice.Create())
+				)
+				.AddBehavior(
+					TSequence.Create()
+					.AddBehavior(TCyberBasic_AINode_BasicCombat.Create())
+					.AddBehavior(
+						TUtilitySelector.Create()
+							.AddBehavior(CyberSpecOps_AINode_CombatGrenade.Create())
+							.AddBehavior(TCyberBasic_AINode_CombatMissile.Create())
+					)
+				)
+			;
+			BehaviorTreeManager.AddBehavior(self.GetClass(), Behavior);
+		}
+	}
+	default
+	{
+		DropItem "Cell", 192;
+		DropItem "CellPack", 32;
+		DropItem "PlasmaRifle", 32;
+		DropItem "CyberArmor", 11;
+		Tag "Cyber Soldier Red";
+		Translation "CyberRed";
+	}
+	states
+	{
+		Missile:
+			SPOP E 0 A_Jump(64, "Think");
+			SPOP E 2 A_FaceTarget();
+			SPOP F 1 bright B_Missile('PlasmaBall');
+			SPOP F 0 bright A_MonsterRefire(0, "Think");
+			goto Missile;
+	}
+}
+
+class CyberSpecOpsBlue : CyberSpecOps
+{
+	override void InitBehavior()
+	{
+		MeleeState = null;
+		MissileState = FindState("Missile", true);
+		AttackStates.Push(MissileState);
+		AttackStates.Push(FindState("TossGrenade", true));
+		TBehaviorTreeManager BehaviorTreeManager = TBehaviorTreeManager.GetInstance();
+		Behavior = BehaviorTreeManager.GetBehavior(self.GetClass());
+		if (!Behavior)
+		{
+			Behavior = TSequence.Create()
+				.AddBehavior(TCyberBasic_AINode_TimeFreeze.Create())
+				.AddBehavior(TCyberBasic_AINode_BasicLife.Create())
+				.AddBehavior(
+					TSelector.Create() // Strategy selector
+						.AddBehavior(TCyberBasic_AINode_SearchHelp.Create())
+						.AddBehavior(TCyberBasic_AINode_Goal.Create())
+						.AddBehavior(TCyberBasic_AINode_Fight.Create())
+						.AddBehavior(TCyberBasic_AINode_Gesture.Create())
+						.AddBehavior(TCyberBasic_AINode_Rest.Create())
+				)
+				.AddBehavior(
+					TSequence.Create()
+					.AddBehavior(TCyberBasic_AINode_ChaseMode.Create(5, 10))
+					.AddBehavior(
+						TSelector.Create() // Tactical selector
+							.AddBehavior(TCyberBasic_AINode_Jump.Create())
+							.AddBehavior(TCyberBasic_AINode_CoverZone.Create())
+							.AddBehavior(TCyberBasic_AINode_NextMove.Create())
+					)
+					.AddBehavior(TCyberBasic_AINode_Move.Create())
+					.AddBehavior(TCyberBasic_AINode_CloackingDevice.Create())
+				)
+				.AddBehavior(
+					TSequence.Create()
+					.AddBehavior(TCyberBasic_AINode_BasicCombat.Create())
+					.AddBehavior(
+						TUtilitySelector.Create()
+							.AddBehavior(CyberSpecOps_AINode_CombatGrenade.Create())
+							.AddBehavior(TCyberBasic_AINode_CombatMissile.Create())
+					)
+				)
+			;
+			BehaviorTreeManager.AddBehavior(self.GetClass(), Behavior);
+		}
+	}
+	default
+	{
+		DropItem "Cell", 192;
+		DropItem "CellPack", 32;
+		DropItem "NFG", 32;
+		DropItem "CyberArmor", 11;
+		Tag "Cyber Soldier Blue";
+		Translation "CyberBlue";
+	}
+	states
+	{
+		Missile:
+			SPOP E 0 A_Jump(64, "Think");
+			SPOP E 2 A_FaceTarget();
+			SPOP F 1 bright B_Missile('NFGPlasmaBall');
+			SPOP F 0 bright A_MonsterRefire(0, "Think");
+			goto Missile;
+	}
+}
+
+class CyberSpecOpsBlack : CyberSpecOps
+{
+	override void InitBehavior()
+	{
+		MeleeState = null;
+		MissileState = FindState("Missile", true);
+		AttackStates.Push(MissileState);
+		AttackStates.Push(FindState("TossGrenade", true));
+		TBehaviorTreeManager BehaviorTreeManager = TBehaviorTreeManager.GetInstance();
+		Behavior = BehaviorTreeManager.GetBehavior(self.GetClass());
+		if (!Behavior)
+		{
+			Behavior = TSequence.Create()
+				.AddBehavior(TCyberBasic_AINode_TimeFreeze.Create())
+				.AddBehavior(TCyberBasic_AINode_BasicLife.Create())
+				.AddBehavior(
+					TSelector.Create() // Strategy selector
+						.AddBehavior(TCyberBasic_AINode_SearchHelp.Create())
+						.AddBehavior(TCyberBasic_AINode_Goal.Create())
+						.AddBehavior(TCyberBasic_AINode_Fight.Create())
+						.AddBehavior(TCyberBasic_AINode_Gesture.Create())
+						.AddBehavior(TCyberBasic_AINode_Rest.Create())
+				)
+				.AddBehavior(
+					TSequence.Create()
+					.AddBehavior(TCyberBasic_AINode_ChaseMode.Create(5, 10))
+					.AddBehavior(
+						TSelector.Create() // Tactical selector
+							.AddBehavior(TCyberBasic_AINode_Jump.Create())
+							.AddBehavior(TCyberBasic_AINode_CoverZone.Create())
+							.AddBehavior(TCyberBasic_AINode_NextMove.Create())
+					)
+					.AddBehavior(TCyberBasic_AINode_Move.Create())
+					.AddBehavior(TCyberBasic_AINode_CloackingDevice.Create())
+				)
+				.AddBehavior(
+					TSequence.Create()
+					.AddBehavior(TCyberBasic_AINode_BasicCombat.Create())
+					.AddBehavior(
+						TUtilitySelector.Create()
+							.AddBehavior(CyberSpecOps_AINode_CombatGrenade.Create())
+							.AddBehavior(CyberSpecOps_AINode_CombatPLC.Create())
+							.AddBehavior(CyberSpecOps_AINode_CombatSTD.Create())
 					)
 				)
 			;
@@ -526,15 +551,15 @@ class CyberCrashBlack : CyberCrash
 		DropItem "CyberBatteryPack", 32;
 		DropItem "PlasmaLaserCannon", 32;
 		DropItem "CyberArmor", 11;
-		Tag "Cyber Crash Black";
+		Tag "Cyber Soldier Black";
 		Translation "CyberBlack";
 	}
 	states
 	{
 		Missile:
-			PLAX E 2 A_Jump(16, "Think");
-			PLAX F 2 bright;
-			PLAX F 0 bright A_MonsterRefire(0, "Think");
+			SPOP E 2 A_Jump(32, "Think");
+			SPOP F 2 bright;
+			SPOP F 0 bright A_MonsterRefire(0, "Think");
 			goto Missile;
 	}
 }

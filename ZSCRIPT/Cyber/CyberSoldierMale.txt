@@ -1,6 +1,6 @@
 //==============================================================================
 //
-// Cyber Crash.
+// Cyber Male.
 //
 //==============================================================================
 
@@ -9,11 +9,11 @@
 // -----------------------------------------------------------------------------
 
 // Node CombatSTD: check if fit for a missile attack.
-class CyberCrash_AINode_CombatSTD : TUtilityBehavior
+class CyberSoldierMale_AINode_CombatSTD : TUtilityBehavior
 {
-	static CyberCrash_AINode_CombatSTD Create()
+	static CyberSoldierMale_AINode_CombatSTD Create()
 	{
-		CyberCrash_AINode_CombatSTD Result = New('CyberCrash_AINode_CombatSTD');
+		CyberSoldierMale_AINode_CombatSTD Result = New('CyberSoldierMale_AINode_CombatSTD');
 		return Result;
 	}
 	override double CalculateUtility(TCustomCyberActor CustomCyberActor)
@@ -41,12 +41,12 @@ class CyberCrash_AINode_CombatSTD : TUtilityBehavior
 }
 
 // Node CombatPLC: check if fit for a missile attack.
-class CyberCrash_AINode_CombatPLC : TUtilityBehavior
+class CyberSoldierMale_AINode_CombatPLC : TUtilityBehavior
 {
 	double MaxDistance; // Actually is squared for performance reasons.
-	static CyberCrash_AINode_CombatPLC Create(double MaxDistance = 1024)
+	static CyberSoldierMale_AINode_CombatPLC Create(double MaxDistance = 1024)
 	{
-		CyberCrash_AINode_CombatPLC Result = New('CyberCrash_AINode_CombatPLC');
+		CyberSoldierMale_AINode_CombatPLC Result = New('CyberSoldierMale_AINode_CombatPLC');
 		Result.MaxDistance = MaxDistance ** 2;
 		return Result;
 	}
@@ -78,10 +78,10 @@ class CyberCrash_AINode_CombatPLC : TUtilityBehavior
 }
 
 // -----------------------------------------------------------------------------
-// CyberCrash.
+// CyberSoldierMale.
 // -----------------------------------------------------------------------------
 
-class CyberCrash : TCyberBasic abstract
+class CyberSoldierMale : TCyberBasic abstract
 {
 	override void Initialize()
 	{
@@ -96,16 +96,16 @@ class CyberCrash : TCyberBasic abstract
 		Mass 100;
 		PainChance 30;
 		Radius 20;
-		Speed 16;
-		Tag "Cyber Crash";
+		Speed 12;
+		Tag "Cyber Soldier Male";
 		KAI_Actor.AggressionMultiplier 1.0;
 		KAI_Actor.ThreatLevel THREAT_DANGEROUS;
 		KAI_Actor.ThreatLevelThreshold THREAT_VERYDANGEROUS;
-		ActiveSound "CyberCrash/Active";
-		AttackSound "CyberCrash/Attack";
-		DeathSound "CyberCrash/Death";
-		PainSound "CyberCrash/Pain";
-		SeeSound "CyberCrash/Sight";
+		ActiveSound "CyberMale/Active";
+		AttackSound "CyberMale/Attack";
+		DeathSound "CyberMale/Death";
+		PainSound "CyberMale/Pain";
+		SeeSound "CyberMale/Sight";
 	}
 	states
 	{
@@ -119,41 +119,41 @@ class CyberCrash : TCyberBasic abstract
 			TNT1 A 0 A_Pain();
 			goto Think;
 		Death:
-			PLAX H 10 B_Die();
-			PLAX IJKLM 10;
-			PLAX N -1;
+			PLAZ H 10 B_Die();
+			PLAZ IJKLM 10;
+			PLAZ N -1;
 			stop;
 		XDeath:
-			PLAX O 5 B_Die();
-			PLAX PQRSTUV 5;
-			PLAX W -1;
+			PLAZ O 5 B_Die();
+			PLAZ PQRSTUV 5;
+			PLAZ W -1;
 			stop;
 		Raise:
-			PLAX N 10 Initialize();
-			PLAX MKJIH 10;
+			PLAZ N 10 Initialize();
+			PLAZ MKJIH 10;
 			goto Think;
 		Think:
 			TNT1 A 0 B_Think();
 			loop; // Never, it is safe!
 		Idle:
-			PLAX AB 10;
+			PLAZ AB 10;
 			goto Think;
 		Jump:
-			PLAX A 5 B_JumpBegin();
-			PLAX B 5;
-			PLAX C 5;
-			PLAX D 5 B_JumpEnd();
+			PLAZ A 5 B_JumpBegin();
+			PLAZ B 5;
+			PLAZ C 5;
+			PLAZ D 5 B_JumpEnd();
 			goto Think;
 		Run:
-			PLAX ABCD 2;
+			PLAZ ABCD 2;
 			goto Think;
 		Walk:
-			PLAX ABCD 4;
+			PLAZ ABCD 4;
 			goto Think;
 	}
 }
 
-class CyberCrashGreen : CyberCrash
+class CyberSoldierMaleGreen : CyberSoldierMale
 {
 	override void InitBehavior()
 	{
@@ -177,7 +177,7 @@ class CyberCrashGreen : CyberCrash
 				)
 				.AddBehavior(
 					TSequence.Create()
-					.AddBehavior(TCyberBasic_AINode_ChaseMode.Create(8, 16))
+					.AddBehavior(TCyberBasic_AINode_ChaseMode.Create(6, 12))
 					.AddBehavior(
 						TSelector.Create() // Tactical selector
 							.AddBehavior(TCyberBasic_AINode_Jump.Create())
@@ -202,21 +202,21 @@ class CyberCrashGreen : CyberCrash
 		DropItem "CellPack", 32;
 		DropItem "PlasmaGun", 32;
 		DropItem "CyberArmor", 11;
-		Tag "Cyber Crash Green";
+		Tag "Cyber Soldier Male Green";
 		Translation "CyberGreen";
 	}
 	states
 	{
 		Missile:
-			PLAX E 0 A_Jump(32, "Think");
-			PLAX E 7 A_FaceTarget();
-			PLAX F 1 bright B_Missile('ArachnotronPlasma');
-			PLAX F 0 bright A_MonsterRefire(0, "Think");
+			PLAZ E 0 A_Jump(32, "Think");
+			PLAZ E 7 A_FaceTarget();
+			PLAZ F 1 bright B_Missile('ArachnotronPlasma');
+			PLAZ F 0 bright A_MonsterRefire(0, "Think");
 			goto Missile;
 	}
 }
 
-class CyberCrashRed : CyberCrash
+class CyberSoldierMaleRed : CyberSoldierMale
 {
 	override void InitBehavior()
 	{
@@ -240,7 +240,7 @@ class CyberCrashRed : CyberCrash
 				)
 				.AddBehavior(
 					TSequence.Create()
-					.AddBehavior(TCyberBasic_AINode_ChaseMode.Create(8, 16))
+					.AddBehavior(TCyberBasic_AINode_ChaseMode.Create(6, 12))
 					.AddBehavior(
 						TSelector.Create() // Tactical selector
 							.AddBehavior(TCyberBasic_AINode_Jump.Create())
@@ -265,21 +265,21 @@ class CyberCrashRed : CyberCrash
 		DropItem "CellPack", 32;
 		DropItem "PlasmaRifle", 32;
 		DropItem "CyberArmor", 11;
-		Tag "Cyber Crash Red";
+		Tag "Cyber Soldier Male Red";
 		Translation "CyberRed";
 	}
 	states
 	{
 		Missile:
-			PLAX E 0 A_Jump(32, "Think");
-			PLAX E 2 A_FaceTarget();
-			PLAX F 1 bright B_Missile('PlasmaBall');
-			PLAX F 0 bright A_MonsterRefire(0, "Think");
+			PLAZ E 0 A_Jump(32, "Think");
+			PLAZ E 2 A_FaceTarget();
+			PLAZ F 1 bright B_Missile('PlasmaBall');
+			PLAZ F 0 bright A_MonsterRefire(0, "Think");
 			goto Missile;
 	}
 }
 
-class CyberCrashBlue : CyberCrash
+class CyberSoldierMaleBlue : CyberSoldierMale
 {
 	override void InitBehavior()
 	{
@@ -303,7 +303,7 @@ class CyberCrashBlue : CyberCrash
 				)
 				.AddBehavior(
 					TSequence.Create()
-					.AddBehavior(TCyberBasic_AINode_ChaseMode.Create(8, 16))
+					.AddBehavior(TCyberBasic_AINode_ChaseMode.Create(6, 12))
 					.AddBehavior(
 						TSelector.Create() // Tactical selector
 							.AddBehavior(TCyberBasic_AINode_Jump.Create())
@@ -328,21 +328,21 @@ class CyberCrashBlue : CyberCrash
 		DropItem "CellPack", 32;
 		DropItem "NFG", 32;
 		DropItem "CyberArmor", 11;
-		Tag "Cyber Crash Blue";
+		Tag "Cyber Soldier Male Blue";
 		Translation "CyberBlue";
 	}
 	states
 	{
 		Missile:
-			PLAX E 0 A_Jump(32, "Think");
-			PLAX E 2 A_FaceTarget();
-			PLAX F 1 bright B_Missile('NFGPlasmaBall');
-			PLAX F 0 bright A_MonsterRefire(0, "Think");
+			PLAZ E 0 A_Jump(32, "Think");
+			PLAZ E 2 A_FaceTarget();
+			PLAZ F 1 bright B_Missile('NFGPlasmaBall');
+			PLAZ F 0 bright A_MonsterRefire(0, "Think");
 			goto Missile;
 	}
 }
 
-class CyberCrashGray : CyberCrash
+class CyberSoldierMaleGray : CyberSoldierMale
 {
 	override void InitBehavior()
 	{
@@ -367,7 +367,7 @@ class CyberCrashGray : CyberCrash
 				)
 				.AddBehavior(
 					TSequence.Create()
-					.AddBehavior(TCyberBasic_AINode_ChaseMode.Create(8, 16))
+					.AddBehavior(TCyberBasic_AINode_ChaseMode.Create(6, 12))
 					.AddBehavior(
 						TSelector.Create() // Tactical selector
 							.AddBehavior(TCyberBasic_AINode_Jump.Create())
@@ -392,20 +392,20 @@ class CyberCrashGray : CyberCrash
 		DropItem "ClipBox", 32;
 		DropItem "VanillaRifle", 32;
 		DropItem "CyberArmor", 11;
-		Tag "Cyber Crash Gray";
+		Tag "Cyber Soldier Male Gray";
 		Translation "CyberGray";
 	}
 	states
 	{
 		Missile:
-			PLAX E 4 A_Jump(32, "Think");
-			PLAX F 4 bright B_Missile("SM_Bullet");
-			PLAX F 0 bright A_MonsterRefire(0, "Think");
+			PLAZ E 4 A_Jump(32, "Think");
+			PLAZ F 4 bright B_Missile("SM_Bullet");
+			PLAZ F 0 bright A_MonsterRefire(0, "Think");
 			goto Missile;
 	}
 }
 
-class CyberCrashWhite : CyberCrash
+class CyberSoldierMaleWhite : CyberSoldierMale
 {
 	override void InitBehavior()
 	{
@@ -430,7 +430,7 @@ class CyberCrashWhite : CyberCrash
 				)
 				.AddBehavior(
 					TSequence.Create()
-					.AddBehavior(TCyberBasic_AINode_ChaseMode.Create(8, 16))
+					.AddBehavior(TCyberBasic_AINode_ChaseMode.Create(6, 12))
 					.AddBehavior(
 						TSelector.Create() // Tactical selector
 							.AddBehavior(TCyberBasic_AINode_Jump.Create())
@@ -456,21 +456,21 @@ class CyberCrashWhite : CyberCrash
 		DropItem "VanillaRifle", 32;
 		DropItem "Berserk", 32;
 		DropItem "CyberArmor", 11;
-		Tag "Cyber Crash White (Medic)";
+		Tag "Cyber Soldier Male White (Nurse)";
 		Translation "CyberWhite";
-		+TCustomNavMeshActor.NavMeshMedic;
+		+TCustomNavMeshActor.NavMeshNurse;
 	}
 	states
 	{
 		Missile:
-			PLAX E 4 A_Jump(32, "Think");
-			PLAX F 4 bright B_Missile("SM_Bullet");
-			PLAX F 0 bright A_MonsterRefire(0, "Think");
+			PLAZ E 4 A_Jump(32, "Think");
+			PLAZ F 4 bright B_Missile("SM_Bullet");
+			PLAZ F 0 bright A_MonsterRefire(0, "Think");
 			goto Missile;
 	}
 }
 
-class CyberCrashBlack : CyberCrash
+class CyberSoldierMaleBlack : CyberSoldierMale
 {
 	override void InitBehavior()
 	{
@@ -494,7 +494,7 @@ class CyberCrashBlack : CyberCrash
 				)
 				.AddBehavior(
 					TSequence.Create()
-					.AddBehavior(TCyberBasic_AINode_ChaseMode.Create(8, 16))
+					.AddBehavior(TCyberBasic_AINode_ChaseMode.Create(6, 12))
 					.AddBehavior(
 						TSelector.Create() // Tactical selector
 							.AddBehavior(TCyberBasic_AINode_Jump.Create())
@@ -509,8 +509,8 @@ class CyberCrashBlack : CyberCrash
 					.AddBehavior(TCyberBasic_AINode_BasicCombat.Create())
 					.AddBehavior(
 						TUtilitySelector.Create()
-							.AddBehavior(CyberCrash_AINode_CombatPLC.Create())
-							.AddBehavior(CyberCrash_AINode_CombatSTD.Create())
+							.AddBehavior(CyberSoldierMale_AINode_CombatPLC.Create())
+							.AddBehavior(CyberSoldierMale_AINode_CombatSTD.Create())
 					)
 				)
 			;
@@ -526,15 +526,15 @@ class CyberCrashBlack : CyberCrash
 		DropItem "CyberBatteryPack", 32;
 		DropItem "PlasmaLaserCannon", 32;
 		DropItem "CyberArmor", 11;
-		Tag "Cyber Crash Black";
+		Tag "Cyber Soldier Male Black";
 		Translation "CyberBlack";
 	}
 	states
 	{
 		Missile:
-			PLAX E 2 A_Jump(16, "Think");
-			PLAX F 2 bright;
-			PLAX F 0 bright A_MonsterRefire(0, "Think");
+			PLAZ E 2 A_Jump(16, "Think");
+			PLAZ F 2 bright;
+			PLAZ F 0 bright A_MonsterRefire(0, "Think");
 			goto Missile;
 	}
 }
