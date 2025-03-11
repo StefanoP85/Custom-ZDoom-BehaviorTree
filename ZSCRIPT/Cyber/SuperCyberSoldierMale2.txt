@@ -786,7 +786,7 @@ class SuperCyberSoldierMale2 : TCyberAdvanced abstract
 				)
 				.AddBehavior(
 					TSequence.Create()
-					.AddBehavior(SuperCyberSoldierMale2_AINode_ChaseMode.Create(10, 20, 24))
+					.AddBehavior(SuperCyberSoldierMale2_AINode_ChaseMode.Create(12, 24, 28))
 					.AddBehavior(
 						TSelector.Create() // Tactical selector
 							.AddBehavior(TCyberBasic_AINode_Jump.Create(9))
@@ -1141,7 +1141,7 @@ class SuperCyberSoldierMale2Medic          : SuperCyberSoldierMale2
 				)
 				.AddBehavior(
 					TSequence.Create()
-					.AddBehavior(SuperCyberSoldierMale2_AINode_ChaseMode.Create(10, 20, 24))
+					.AddBehavior(SuperCyberSoldierMale2_AINode_ChaseMode.Create(12, 24, 28))
 					.AddBehavior(
 						TSelector.Create() // Tactical selector
 							.AddBehavior(TCyberBasic_AINode_Jump.Create(9))
