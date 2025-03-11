@@ -199,7 +199,7 @@ class SuperCyberDoomGreen : SuperCyberDoom
 				.AddBehavior(
 					TSelector.Create() // Strategy selector
 						.AddBehavior(TCyberBasic_AINode_SearchHelp.Create())
-						.AddBehavior(TCyberBasic_AINode_Goal.Create())
+						.AddBehavior(TCyberBasic_AINode_Goal.Create(8))
 						.AddBehavior(TCyberBasic_AINode_Fight.Create())
 						.AddBehavior(TCyberBasic_AINode_Gesture.Create())
 						.AddBehavior(TCyberBasic_AINode_Rest.Create())
@@ -267,7 +267,7 @@ class SuperCyberDoomRed : SuperCyberDoom
 				.AddBehavior(
 					TSelector.Create() // Strategy selector
 						.AddBehavior(TCyberBasic_AINode_SearchHelp.Create())
-						.AddBehavior(TCyberBasic_AINode_Goal.Create())
+						.AddBehavior(TCyberBasic_AINode_Goal.Create(8))
 						.AddBehavior(TCyberBasic_AINode_Fight.Create())
 						.AddBehavior(TCyberBasic_AINode_Gesture.Create())
 						.AddBehavior(TCyberBasic_AINode_Rest.Create())
@@ -335,7 +335,7 @@ class SuperCyberDoomBlue : SuperCyberDoom
 				.AddBehavior(
 					TSelector.Create() // Strategy selector
 						.AddBehavior(TCyberBasic_AINode_SearchHelp.Create())
-						.AddBehavior(TCyberBasic_AINode_Goal.Create())
+						.AddBehavior(TCyberBasic_AINode_Goal.Create(8))
 						.AddBehavior(TCyberBasic_AINode_Fight.Create())
 						.AddBehavior(TCyberBasic_AINode_Gesture.Create())
 						.AddBehavior(TCyberBasic_AINode_Rest.Create())
@@ -404,7 +404,7 @@ class SuperCyberDoomWhite: SuperCyberDoom
 					TSelector.Create() // Strategy selector
 						.AddBehavior(TCyberBasic_AINode_SearchHelp.Create())
 						.AddBehavior(TCyberBasic_AINode_GiveAid.Create())
-						.AddBehavior(TCyberBasic_AINode_Goal.Create())
+						.AddBehavior(TCyberBasic_AINode_Goal.Create(8))
 						.AddBehavior(TCyberBasic_AINode_Fight.Create())
 						.AddBehavior(TCyberBasic_AINode_Gesture.Create())
 						.AddBehavior(TCyberBasic_AINode_Rest.Create())
@@ -473,7 +473,7 @@ class SuperCyberDoomBlack: SuperCyberDoom
 				.AddBehavior(
 					TSelector.Create() // Strategy selector
 						.AddBehavior(TCyberBasic_AINode_SearchHelp.Create())
-						.AddBehavior(TCyberBasic_AINode_Goal.Create())
+						.AddBehavior(TCyberBasic_AINode_Goal.Create(8))
 						.AddBehavior(TCyberBasic_AINode_Fight.Create())
 						.AddBehavior(TCyberBasic_AINode_Gesture.Create())
 						.AddBehavior(TCyberBasic_AINode_Rest.Create())
