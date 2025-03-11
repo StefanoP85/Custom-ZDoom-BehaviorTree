@@ -779,7 +779,7 @@ class SuperCyberSoldierMale2 : TCyberAdvanced abstract
 				.AddBehavior(
 					TSelector.Create() // Strategy selector
 						.AddBehavior(TCyberBasic_AINode_SearchHelp.Create())
-						.AddBehavior(TCyberBasic_AINode_Goal.Create())
+						.AddBehavior(TCyberBasic_AINode_Goal.Create(10))
 						.AddBehavior(TCyberBasic_AINode_Fight.Create())
 						.AddBehavior(SuperCyberSoldierMale2_AINode_Gesture.Create())
 						.AddBehavior(SuperCyberSoldierMale2_AINode_Rest.Create())
@@ -1134,7 +1134,7 @@ class SuperCyberSoldierMale2Medic          : SuperCyberSoldierMale2
 					TSelector.Create() // Strategy selector
 						.AddBehavior(TCyberBasic_AINode_SearchHelp.Create())
 						.AddBehavior(TCyberBasic_AINode_GiveAid.Create())
-						.AddBehavior(TCyberBasic_AINode_Goal.Create())
+						.AddBehavior(TCyberBasic_AINode_Goal.Create(10))
 						.AddBehavior(TCyberBasic_AINode_Fight.Create())
 						.AddBehavior(SuperCyberSoldierMale2_AINode_Gesture.Create())
 						.AddBehavior(SuperCyberSoldierMale2_AINode_Rest.Create())
