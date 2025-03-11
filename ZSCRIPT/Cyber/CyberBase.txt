@@ -134,7 +134,7 @@ class TPriorityQueueItem : Thinker
 		PriorityQueueItem.Monster = Monster;
 		PriorityQueueItem.ThreatLevel = ThreatLevel;
 		PriorityQueueItem.ExperiencedThreatLevel = ExperiencedThreatLevel;
-		PriorityQueueItem.Timer = 4200 * TICRATE; // 4200 TICS, 120 seconds.
+		PriorityQueueItem.Timer = 120 * TICRATE; // 4200 TICS, 120 seconds.
 		return PriorityQueueItem;
 	}
 }
@@ -716,6 +716,12 @@ class TCustomCyberActor : TCustomNavMeshActor abstract
 		if (Behavior)
 			Behavior.Think(self);
 	}
+	// Point to the commander.
+	override void AfterOrderChange(NPCOrders OldOrder, bool Increment, Actor Commander, bool IgnoreAllegiance, bool FromACS)
+	{
+		super.AfterOrderChange(OldOrder, Increment, Commander, IgnoreAllegiance, FromACS);
+		A_Face(Commander);
+	}
 	// Check if the actor is playing a gesture animation.
 	State IsInGestureAnimation() {
 		State FoundState = State(null);
@@ -985,7 +991,7 @@ class TCustomCyberActor : TCustomNavMeshActor abstract
 					break;
 				}
 				// Remove monsters with ETL_INITIAL experience.
-				/*if (PriorityQueue.Items[I].ExperiencedThreatLevel == ETL_INITIAL)
+				if (PriorityQueue.Items[I].ExperiencedThreatLevel == ETL_INITIAL)
 					if (PriorityQueue.Items[I].Timer > 0)
 						PriorityQueue.Items[I].Timer--;
 					else
@@ -993,7 +999,7 @@ class TCustomCyberActor : TCustomNavMeshActor abstract
 						PriorityQueue.Remove(I);
 						ListChanged = true;
 						break;
-					}*/
+					}
 			}
 		} while (ListChanged);
 		// Update the threat level.
@@ -1020,7 +1026,7 @@ class TCustomCyberActor : TCustomNavMeshActor abstract
 						PriorityQueue.Insert(Players[I].MO, ThreatLevel, ExperiencedThreatLevel);
 			}
 		// Check the sound target.
-		if ((CurSector.SoundTarget) && (IsActorHostile(CurSector.SoundTarget)))
+		if ((CurSector.SoundTarget) && !(IsDead(CurSector.SoundTarget)) && (IsActorHostile(CurSector.SoundTarget)))
 		{
 			TThreatLevel ThreatLevel = AssessThreatLevel(CurSector.SoundTarget);
 			TExperiencedThreatLevel ExperiencedThreatLevel = ETL_INITIAL;
@@ -1055,22 +1061,31 @@ class TCustomCyberActor : TCustomNavMeshActor abstract
 	}
 	virtual void B_JumpBegin()
 	{
-		bNONSHOOTABLE = true;
 		bNOPAIN = true;
 		A_StartSound(FJumpSound);
 	}
 	virtual void B_JumpEnd()
 	{
-		bNONSHOOTABLE = false;
 		bNOPAIN = false;
+	}
+	virtual void B_Melee(int Damage)
+	{
+		if (Target)
+			A_CustomMeleeAttack(Damage, "SuperSoldier/Melee");
 	}
 	virtual void B_Missile(Class<Actor> ProjectileClass, double SpawnHeight = 32, double Angle = 0)
 	{
-		double Speed = GetDefaultByType(ProjectileClass).Speed;
-		double FastSpeed = GetDefaultByType(ProjectileClass).FastSpeed;
-		A_FaceTarget();
-		AimAtTarget(0, 270, 0, 0, 0, 0, -1, Speed, FastSpeed);
-		A_SpawnProjectile(ProjectileClass, SpawnHeight, 0, Angle);
+		if (Target)
+		{
+			ReadOnly<Actor> Defaults = GetDefaultByType(ProjectileClass);
+			double Speed = Defaults.Speed;
+			double FastSpeed = Defaults.FastSpeed;
+			if (FastSpeed <= 0)
+				FastSpeed = Speed;
+			A_FaceTarget();
+			AimAtTarget(AttackSpeed : Speed, FastAttackSpeed : FastSpeed);
+			A_SpawnProjectile(ProjectileClass, SpawnHeight, 0, Angle);
+		}
 	}
 	virtual void B_MoveBackward()
 	{
@@ -1093,6 +1108,20 @@ class TCustomCyberActor : TCustomNavMeshActor abstract
 	virtual void B_Think()
 	{
 		SetStateLabel(CurStateLabel);
+	}
+	override int AssessThreatLevel(Actor Other, bool CheckPlayers)
+	{
+		if (Other.GetClassName() == "ShootingRangeDummy")
+			return THREAT_NONE;
+		return super.AssessThreatLevel(Other, CheckPlayers);
+	}
+	override void AfterOrderChange(NPCOrders OldOrder, bool Increment, Actor Commander, bool IgnoreAllegiance, bool FromACS)
+	{
+		super.AfterOrderChange();
+		if ((CurrentOrder == ORDER_FOLLOW || CurrentOrder == ORDER_WANDER) && IsInState(self, "Idle"))
+			UpdateStateLabel('Walk');
+		if (CurrentOrder == ORDER_STAY)
+			UpdateStateLabel('Idle');
 	}
 	default
 	{
@@ -1401,14 +1430,38 @@ class TCyberBasic_AINode_RepairVehicle : TBehavior
 // Node Mission: set strategy to follow mission.
 class TCyberBasic_AINode_Goal : TBehavior
 {
-	static TCyberBasic_AINode_Goal Create()
+	int FollowingSpeed;
+	static TCyberBasic_AINode_Goal Create(int FollowingSpeed)
 	{
 		TCyberBasic_AINode_Goal Result = New('TCyberBasic_AINode_Goal');
+		Result.FollowingSpeed = FollowingSpeed;
 		return Result;
 	}
 	override TStatus Update(TCustomCyberActor CustomCyberActor)
 	{
-		return BH_FAILURE;
+		switch (CustomCyberActor.CurrentOrder)
+		{
+			case CustomCyberActor.ORDER_FOLLOW:
+				Actor Commander;
+				[CustomCyberActor.Destination, Commander] = CustomCyberActor.HandleFollowingActor(CustomCyberActor.Pos);
+				if (Commander)
+					CustomCyberActor.A_Face(Commander);
+				if (CustomCyberActor.PriorityQueue.ItemsCount == 0)
+				{
+					CustomCyberActor.Speed = FollowingSpeed;
+					CustomCyberActor.UpdateStateLabel('Walk');
+				}
+				return BH_SUCCESS;
+			case CustomCyberActor.ORDER_STAY:
+				CustomCyberActor.Destination = CustomCyberActor.Pos;
+				if (CustomCyberActor.PriorityQueue.ItemsCount == 0)
+					return BH_FAILURE; // Let the "Rest" AI node update the state
+				return BH_SUCCESS;
+			case CustomCyberActor.ORDER_WANDER:
+				CustomCyberActor.Destination = CustomCyberActor.Pos;
+				return BH_SUCCESS;
+		}
+		return BH_FAILURE; // case CustomCyberActor.ORDER_NONE
 	}
 }
 
@@ -1555,7 +1608,6 @@ class TCyberBasic_AINode_ChaseMode : TBehavior
 // Node Jump: perform a jump, to try escape unavoidable damage, if the "Jump" state sequence exists.
 class TCyberBasic_AINode_Jump : TBehavior
 {
-	const HalfSqrtTwo = 0.70710678118;
 	int VerticalSpeed;
 	static TCyberBasic_AINode_Jump Create(int VerticalSpeed = 6)
 	{
@@ -1635,12 +1687,12 @@ class TCyberBasic_AINode_Jump : TBehavior
 						VelX = CustomCyberActor.Speed;
 						break;
 					case 1:
-						VelX = CustomCyberActor.Speed * HalfSqrtTwo;
-						VelY = -CustomCyberActor.Speed * HalfSqrtTwo;
+						VelX = CustomCyberActor.Speed * M_SQRT1_2;
+						VelY = -CustomCyberActor.Speed * M_SQRT1_2;
 						break;
 					case 2:
-						VelX = CustomCyberActor.Speed * HalfSqrtTwo;
-						VelY = CustomCyberActor.Speed * HalfSqrtTwo;
+						VelX = CustomCyberActor.Speed * M_SQRT1_2;
+						VelY = CustomCyberActor.Speed * M_SQRT1_2;
 						break;
 					case 3:
 						VelY = -CustomCyberActor.Speed;
@@ -1649,15 +1701,15 @@ class TCyberBasic_AINode_Jump : TBehavior
 						VelY = CustomCyberActor.Speed;
 						break;
 					case 5:
-						VelX = -CustomCyberActor.Speed * HalfSqrtTwo;
-						VelY = -CustomCyberActor.Speed * HalfSqrtTwo;
+						VelX = -CustomCyberActor.Speed * M_SQRT1_2;
+						VelY = -CustomCyberActor.Speed * M_SQRT1_2;
 						break;
 					case 6:
-						VelX = -CustomCyberActor.Speed * HalfSqrtTwo;
-						VelY = CustomCyberActor.Speed * HalfSqrtTwo;
+						VelX = -CustomCyberActor.Speed * M_SQRT1_2;
+						VelY = CustomCyberActor.Speed * M_SQRT1_2;
 						break;
 					case 7:
-						VelX = -CustomCyberActor.Speed * HalfSqrtTwo;
+						VelX = -CustomCyberActor.Speed * M_SQRT1_2;
 						break;
 				}
 				CustomCyberActor.Jumping = true;
@@ -1841,51 +1893,47 @@ class TCyberBasic_AINode_NextMove : TBehavior
 			}
 		// Choose the best tactical next step.
 		double DistanceStep[8];
+		int DistanceDir;
+		double DistanceMin;
 		int TargetsCount = CustomCyberActor.PriorityQueue.Items.Size();
 		int VisibleTargetsCount = 0;
 		if (TargetsCount > 0)
 		{
 			for (int I = 0; I < TargetsCount; I++)
-				if (CustomCyberActor.CheckSight(CustomCyberActor.PriorityQueue.Items[I].Monster))
-					VisibleTargetsCount++;
-			if (VisibleTargetsCount > 0)
 			{
-				for (int I = 0; I < TargetsCount; I++)
-					if (CustomCyberActor.CheckSight(CustomCyberActor.PriorityQueue.Items[I].Monster))
-					{
-						TPriorityQueueItem PriorityQueueItem = CustomCyberActor.PriorityQueue.Items[I];
-						double UtilityDistance = CalculateUtilityDistance(CustomCyberActor, PriorityQueueItem) ** 2;
-						double UtilityScore = CalculateUtilityScore(CustomCyberActor, PriorityQueueItem);
-						Vector3 RefPoint = CustomCyberActor.CoverPosition == CustomCyberActor.Pos ? PriorityQueueItem.Monster.Pos : CustomCyberActor.CoverPosition;
-						for (int I = 0; I < 8; I++)
-							DistanceStep[I] = (CyberEventHandler.StepPos[I].X - RefPoint.X) ** 2 + (CyberEventHandler.StepPos[I].Y - RefPoint.Y) ** 2;
-						int DistanceDir = 0;
-						double DistanceMin = DistanceStep[0];
-						for (int I = 1; I < 8; I++)
-							if (DistanceMin > DistanceStep[I])
-							{
-								DistanceDir = I;
-								DistanceMin = DistanceStep[I];
-							}
-						if ((DistanceMin >= UtilityDistance) && (DistanceMin <= (UtilityDistance * 4)))
-							if (CustomCyberActor.PreferredDirection == 1)
-								DistanceDir = 3;
-							else
-								DistanceDir = 4;
+				if (CustomCyberActor.CheckSight(CustomCyberActor.PriorityQueue.Items[I].Monster))
+				{
+					VisibleTargetsCount++;
+					TPriorityQueueItem PriorityQueueItem = CustomCyberActor.PriorityQueue.Items[I];
+					double UtilityDistance = CalculateUtilityDistance(CustomCyberActor, PriorityQueueItem) ** 2;
+					double UtilityScore = CalculateUtilityScore(CustomCyberActor, PriorityQueueItem);
+					Vector3 RefPoint = CustomCyberActor.CoverPosition == CustomCyberActor.Pos ? PriorityQueueItem.Monster.Pos : CustomCyberActor.CoverPosition;
+					for (int I = 0; I < 8; I++)
+						DistanceStep[I] = (CyberEventHandler.StepPos[I].X - RefPoint.X) ** 2 + (CyberEventHandler.StepPos[I].Y - RefPoint.Y) ** 2;
+					DistanceDir = 0;
+					DistanceMin = DistanceStep[0];
+					for (int I = 1; I < 8; I++)
+						if (DistanceMin > DistanceStep[I])
+						{
+							DistanceDir = I;
+							DistanceMin = DistanceStep[I];
+						}
+					if ((DistanceMin >= UtilityDistance) && (DistanceMin <= (UtilityDistance * 4)))
+						if (CustomCyberActor.PreferredDirection == 1)
+							DistanceDir = 3;
 						else
-							if (DistanceMin < UtilityDistance)
-								DistanceDir = 7 - DistanceDir; // Inverts the direction.
-						// Blend in the utility score.
-						CyberEventHandler.EstimateDamage[DistanceDir] -= UtilityScore;
-						CyberEventHandler.EstimateDamage[SideDir1[DistanceDir]] -= UtilityScore / 2.8;
-						CyberEventHandler.EstimateDamage[SideDir2[DistanceDir]] -= UtilityScore / 2.8;
-						CyberEventHandler.EstimateDamage[7 - DistanceDir] += UtilityScore;
-						CyberEventHandler.EstimateDamage[7 - SideDir1[DistanceDir]] += UtilityScore / 2.8;
-						CyberEventHandler.EstimateDamage[7 - SideDir2[DistanceDir]] += UtilityScore / 2.8;
-					}
-				// Clear the route.
-				if ((CustomCyberActor.RouteActive) && (CustomCyberActor.CoverPosition == CustomCyberActor.Pos))
-					CustomCyberActor.RouteEnd();
+							DistanceDir = 4;
+					else
+						if (DistanceMin < UtilityDistance)
+							DistanceDir = 7 - DistanceDir; // Inverts the direction.
+					// Blend in the utility score.
+					CyberEventHandler.EstimateDamage[DistanceDir] -= UtilityScore;
+					CyberEventHandler.EstimateDamage[SideDir1[DistanceDir]] -= UtilityScore / 2.8;
+					CyberEventHandler.EstimateDamage[SideDir2[DistanceDir]] -= UtilityScore / 2.8;
+					CyberEventHandler.EstimateDamage[7 - DistanceDir] += UtilityScore;
+					CyberEventHandler.EstimateDamage[7 - SideDir1[DistanceDir]] += UtilityScore / 2.8;
+					CyberEventHandler.EstimateDamage[7 - SideDir2[DistanceDir]] += UtilityScore / 2.8;
+				}
 			}
 		}
 		else
@@ -1897,6 +1945,7 @@ class TCyberBasic_AINode_NextMove : TBehavior
 			}
 			else
 			{
+				Vector3 NextPoint;
 				if (CustomCyberActor.NavMesh)
 				{
 					// Sets the next step using only projectile hazards, no monster tactical analysis.
@@ -1904,72 +1953,57 @@ class TCyberBasic_AINode_NextMove : TBehavior
 					int SourcePoly = CustomCyberActor.NavMesh.SearchPolygon(CustomCyberActor.Pos);
 					if ((DestinationPoly == SourcePoly) && (DestinationPoly >= 0))
 					{
-						// The destination is reachable (same navmesh polygon).
-						for (int I = 0; I < 8; I++)
-							DistanceStep[I] = (CyberEventHandler.StepPos[I].X - CustomCyberActor.Destination.X) ** 2 + (CyberEventHandler.StepPos[I].Y - CustomCyberActor.Destination.Y) ** 2;
-						int DistanceDir = 0;
-						double DistanceMin = DistanceStep[0];
-						for (int I = 1; I < 8; I++)
-							if (DistanceMin > DistanceStep[I])
-							{
-								DistanceDir = I;
-								DistanceMin = DistanceStep[I];
-							}
-						// Blend in the distance to destination.
-						double UtilityScore = 15;
-						CyberEventHandler.EstimateDamage[DistanceDir] -= UtilityScore;
-						CyberEventHandler.EstimateDamage[SideDir1[DistanceDir]] -= UtilityScore / 2.5;
-						CyberEventHandler.EstimateDamage[SideDir2[DistanceDir]] -= UtilityScore / 2.8;
-						CyberEventHandler.EstimateDamage[7 - DistanceDir] += UtilityScore;
-						CyberEventHandler.EstimateDamage[7 - SideDir1[DistanceDir]] += UtilityScore / 2.5;
-						CyberEventHandler.EstimateDamage[7 - SideDir2[DistanceDir]] += UtilityScore / 2.8;
-						// Clear the route.
-						if ((CustomCyberActor.RouteActive) && (CustomCyberActor.CoverPosition == CustomCyberActor.Pos))
-							CustomCyberActor.RouteEnd();
+						// Destination is in current navmesh polygon: next point is the destination.
+						CustomCyberActor.RouteEnd();
+						NextPoint = CustomCyberActor.Destination;
 					}
 					else
 					{
-						// The destination is not: use the navmesh.
-						Vector3 NextPoint;
 						if (CustomCyberActor.RouteActive)
 						{
+							// Update the route and pick the first step.
 							CustomCyberActor.RouteUpdate(CustomCyberActor.Destination);
 							if (CustomCyberActor.RouteActive)
 								NextPoint = CustomCyberActor.Route[CustomCyberActor.RouteStep].Position;
 							else
-								NextPoint = CustomCyberActor.FindRandomMovePos();
+								NextPoint = CustomCyberActor.Destination;
 						}
 						else
+						{
 							if (CustomCyberActor.RouteSearch(CustomCyberActor.Destination))
 							{
+								// Begin the route and pick the first step.
 								CustomCyberActor.RouteBegin();
 								NextPoint = CustomCyberActor.Route[CustomCyberActor.RouteStep].Position;
 							}
 							else
 							{
-								// Don't know where to go: simply use FindRandomMovePos.
-								NextPoint = CustomCyberActor.FindRandomMovePos();
+								// Couldn't find a route.
+								NextPoint = CustomCyberActor.Destination;
 							}
-						for (int I = 0; I < 8; I++)
-							DistanceStep[I] = (CyberEventHandler.StepPos[I].X - NextPoint.X) ** 2 + (CyberEventHandler.StepPos[I].Y - NextPoint.Y) ** 2;
-						int DistanceDir = 0;
-						double DistanceMin = DistanceStep[0];
-						for (int I = 1; I < 8; I++)
-							if (DistanceMin > DistanceStep[I])
-							{
-								DistanceDir = I;
-								DistanceMin = DistanceStep[I];
-							}
-						// Blend in the distance to destination.
-						double UtilityScore = 15;
-						CyberEventHandler.EstimateDamage[DistanceDir] -= UtilityScore;
-						CyberEventHandler.EstimateDamage[SideDir1[DistanceDir]] -= UtilityScore / 2.5;
-						CyberEventHandler.EstimateDamage[SideDir2[DistanceDir]] -= UtilityScore / 2.8;
-						CyberEventHandler.EstimateDamage[7 - DistanceDir] += UtilityScore;
-						CyberEventHandler.EstimateDamage[7 - SideDir1[DistanceDir]] += UtilityScore / 2.5;
-						CyberEventHandler.EstimateDamage[7 - SideDir2[DistanceDir]] += UtilityScore / 2.8;
+						}
 					}
 				}
+				else
+					NextPoint = CustomCyberActor.Destination;
+				for (int I = 0; I < 8; I++)
+					DistanceStep[I] = (CyberEventHandler.StepPos[I].X - NextPoint.X) ** 2 + (CyberEventHandler.StepPos[I].Y - NextPoint.Y) ** 2;
+				DistanceDir = 0;
+				DistanceMin = DistanceStep[0];
+				for (int I = 1; I < 8; I++)
+					if (DistanceMin > DistanceStep[I])
+					{
+						DistanceDir = I;
+						DistanceMin = DistanceStep[I];
+					}
+				// Blend in the distance to destination.
+				double UtilityScore = 16;
+				CyberEventHandler.EstimateDamage[DistanceDir] -= UtilityScore;
+				CyberEventHandler.EstimateDamage[SideDir1[DistanceDir]] -= UtilityScore / 2.5;
+				CyberEventHandler.EstimateDamage[SideDir2[DistanceDir]] -= UtilityScore / 2.8;
+				CyberEventHandler.EstimateDamage[7 - DistanceDir] += UtilityScore;
+				CyberEventHandler.EstimateDamage[7 - SideDir1[DistanceDir]] += UtilityScore / 2.5;
+				CyberEventHandler.EstimateDamage[7 - SideDir2[DistanceDir]] += UtilityScore / 2.8;
 			}
 		}
 		// Penalize the blocked directions.
@@ -2007,7 +2041,14 @@ class TCyberBasic_AINode_Move : TBehavior
 	override TStatus Update(TCustomCyberActor CustomCyberActor)
 	{
 		if ((CustomCyberActor.NextStep == CustomCyberActor.Pos) && (CustomCyberActor.PriorityQueue.Items.Size() == 0))
+		{
+			if (CustomCyberActor.CurrentOrder == CustomCyberActor.ORDER_WANDER)
+			{
+				CustomCyberActor.UpdateStateLabel('Walk');
+				CustomCyberActor.KAI_Wander();
+			}
 			return BH_SUCCESS;
+		}
 		if (CustomCyberActor.ReactionTime)
 			CustomCyberActor.ReactionTime--;
 		if (CustomCyberActor.MoveCount)
@@ -2024,7 +2065,7 @@ class TCyberBasic_AINode_Move : TBehavior
 			if ((!Result) && (!CustomCyberActor.IsInAttackState()))
 			{
 				// TryMove failed: set MoveCount and then use KAI_MoveTowards.
-				CustomCyberActor.MoveCount = Random(2, 8);
+				CustomCyberActor.MoveCount = Random(2, 5);
 				CustomCyberActor.KAI_MoveTowards(CustomCyberActor.NextStep);
 			}
 		}
@@ -2058,7 +2099,7 @@ class TCyberBasic_AINode_BasicCombat : TBehavior
 			)
 				return BH_FAILURE; // Don't attack
 			// Use CanAttack & ShouldAttack to check if attack is desired; don't change state!
-			if (CustomCyberActor.CanAttack())
+			if ((CustomCyberActor.CheckSight(CustomCyberActor.Target)) && (CustomCyberActor.CanAttack()))
 				return BH_SUCCESS;
 			return BH_FAILURE;
 		}
