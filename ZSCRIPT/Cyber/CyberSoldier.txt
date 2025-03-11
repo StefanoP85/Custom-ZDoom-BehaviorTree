@@ -130,7 +130,7 @@ class CyberSoldierGreen : CyberSoldier
 				.AddBehavior(
 					TSelector.Create() // Strategy selector
 						.AddBehavior(TCyberBasic_AINode_SearchHelp.Create())
-						.AddBehavior(TCyberBasic_AINode_Goal.Create())
+						.AddBehavior(TCyberBasic_AINode_Goal.Create(5))
 						.AddBehavior(TCyberBasic_AINode_Fight.Create())
 						.AddBehavior(TCyberBasic_AINode_Gesture.Create())
 						.AddBehavior(TCyberBasic_AINode_Rest.Create())
@@ -234,7 +234,7 @@ class CyberSoldierRed : CyberSoldier
 				.AddBehavior(
 					TSelector.Create() // Strategy selector
 						.AddBehavior(TCyberBasic_AINode_SearchHelp.Create())
-						.AddBehavior(TCyberBasic_AINode_Goal.Create())
+						.AddBehavior(TCyberBasic_AINode_Goal.Create(5))
 						.AddBehavior(TCyberBasic_AINode_Fight.Create())
 						.AddBehavior(TCyberBasic_AINode_Gesture.Create())
 						.AddBehavior(TCyberBasic_AINode_Rest.Create())
@@ -338,7 +338,7 @@ class CyberSoldierBlue : CyberSoldier
 				.AddBehavior(
 					TSelector.Create() // Strategy selector
 						.AddBehavior(TCyberBasic_AINode_SearchHelp.Create())
-						.AddBehavior(TCyberBasic_AINode_Goal.Create())
+						.AddBehavior(TCyberBasic_AINode_Goal.Create(5))
 						.AddBehavior(TCyberBasic_AINode_Fight.Create())
 						.AddBehavior(TCyberBasic_AINode_Gesture.Create())
 						.AddBehavior(TCyberBasic_AINode_Rest.Create())
@@ -443,7 +443,7 @@ class CyberSoldierGray : CyberSoldier
 					TSelector.Create() // Strategy selector
 						.AddBehavior(TCyberBasic_AINode_SearchHelp.Create())
 						.AddBehavior(TCyberBasic_AINode_RepairVehicle.Create())
-						.AddBehavior(TCyberBasic_AINode_Goal.Create())
+						.AddBehavior(TCyberBasic_AINode_Goal.Create(5))
 						.AddBehavior(TCyberBasic_AINode_Fight.Create())
 						.AddBehavior(TCyberBasic_AINode_Gesture.Create())
 						.AddBehavior(TCyberBasic_AINode_Rest.Create())
@@ -550,7 +550,7 @@ class CyberSoldierWhite : CyberSoldier
 					TSelector.Create() // Strategy selector
 						.AddBehavior(TCyberBasic_AINode_SearchHelp.Create())
 						.AddBehavior(TCyberBasic_AINode_GiveAid.Create())
-						.AddBehavior(TCyberBasic_AINode_Goal.Create())
+						.AddBehavior(TCyberBasic_AINode_Goal.Create(5))
 						.AddBehavior(TCyberBasic_AINode_Fight.Create())
 						.AddBehavior(TCyberBasic_AINode_Gesture.Create())
 						.AddBehavior(TCyberBasic_AINode_Rest.Create())
@@ -658,7 +658,7 @@ class CyberSoldierBlack : CyberSoldier
 				.AddBehavior(
 					TSelector.Create() // Strategy selector
 						.AddBehavior(TCyberBasic_AINode_SearchHelp.Create())
-						.AddBehavior(TCyberBasic_AINode_Goal.Create())
+						.AddBehavior(TCyberBasic_AINode_Goal.Create(5))
 						.AddBehavior(TCyberBasic_AINode_Fight.Create())
 						.AddBehavior(TCyberBasic_AINode_Gesture.Create())
 						.AddBehavior(TCyberBasic_AINode_Rest.Create())
