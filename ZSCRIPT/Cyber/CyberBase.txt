@@ -716,12 +716,6 @@ class TCustomCyberActor : TCustomNavMeshActor abstract
 		if (Behavior)
 			Behavior.Think(self);
 	}
-	// Point to the commander.
-	override void AfterOrderChange(NPCOrders OldOrder, bool Increment, Actor Commander, bool IgnoreAllegiance, bool FromACS)
-	{
-		super.AfterOrderChange(OldOrder, Increment, Commander, IgnoreAllegiance, FromACS);
-		A_Face(Commander);
-	}
 	// Check if the actor is playing a gesture animation.
 	State IsInGestureAnimation() {
 		State FoundState = State(null);
@@ -1054,6 +1048,22 @@ class TCustomCyberActor : TCustomNavMeshActor abstract
 					}
 				}
 	}
+	// Point to the commander.
+	override void AfterOrderChange(NPCOrders OldOrder, bool Increment, Actor Commander, bool IgnoreAllegiance, bool FromACS)
+	{
+		super.AfterOrderChange(OldOrdr, Increment, Commander, IgnoreAllegiance, FromACS);
+		if ((CurrentOrder == ORDER_FOLLOW || CurrentOrder == ORDER_WANDER) && IsInState(self, "Idle"))
+			UpdateStateLabel('Walk');
+		if (CurrentOrder == ORDER_STAY)
+			UpdateStateLabel('Idle');
+	}
+	override int AssessThreatLevel(Actor Other, bool CheckPlayers)
+	{
+		if (Other.GetClassName() == "ShootingRangeDummy")
+			return THREAT_NONE;
+		return super.AssessThreatLevel(Other, CheckPlayers);
+	}
+	// Polymorphic behavior.
 	virtual void B_Die()
 	{
 		A_ScreamAndUnblock();
@@ -1108,20 +1118,6 @@ class TCustomCyberActor : TCustomNavMeshActor abstract
 	virtual void B_Think()
 	{
 		SetStateLabel(CurStateLabel);
-	}
-	override int AssessThreatLevel(Actor Other, bool CheckPlayers)
-	{
-		if (Other.GetClassName() == "ShootingRangeDummy")
-			return THREAT_NONE;
-		return super.AssessThreatLevel(Other, CheckPlayers);
-	}
-	override void AfterOrderChange(NPCOrders OldOrder, bool Increment, Actor Commander, bool IgnoreAllegiance, bool FromACS)
-	{
-		super.AfterOrderChange();
-		if ((CurrentOrder == ORDER_FOLLOW || CurrentOrder == ORDER_WANDER) && IsInState(self, "Idle"))
-			UpdateStateLabel('Walk');
-		if (CurrentOrder == ORDER_STAY)
-			UpdateStateLabel('Idle');
 	}
 	default
 	{
