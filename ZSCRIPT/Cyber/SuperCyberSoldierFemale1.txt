@@ -785,7 +785,7 @@ class SuperCyberSoldierFemale1 : TCyberAdvanced abstract
 				.AddBehavior(
 					TSelector.Create() // Strategy selector
 						.AddBehavior(TCyberBasic_AINode_SearchHelp.Create())
-						.AddBehavior(TCyberBasic_AINode_Goal.Create())
+						.AddBehavior(TCyberBasic_AINode_Goal.Create(10))
 						.AddBehavior(TCyberBasic_AINode_Fight.Create())
 						.AddBehavior(SuperCyberSoldierFemale1_AINode_Gesture.Create())
 						.AddBehavior(SuperCyberSoldierFemale1_AINode_Rest.Create())
@@ -1158,7 +1158,7 @@ class SuperCyberSoldierFemale1WhiteMetallic  : SuperCyberSoldierFemale1
 					TSelector.Create() // Strategy selector
 						.AddBehavior(TCyberBasic_AINode_SearchHelp.Create())
 						.AddBehavior(TCyberBasic_AINode_GiveAid.Create())
-						.AddBehavior(TCyberBasic_AINode_Goal.Create())
+						.AddBehavior(TCyberBasic_AINode_Goal.Create(10))
 						.AddBehavior(TCyberBasic_AINode_Fight.Create())
 						.AddBehavior(SuperCyberSoldierFemale1_AINode_Gesture.Create())
 						.AddBehavior(SuperCyberSoldierFemale1_AINode_Rest.Create())
