@@ -510,7 +510,7 @@ class SuperCyberSoldierFemale0 : TCyberAdvanced abstract
 				.AddBehavior(
 					TSelector.Create() // Strategy selector
 						.AddBehavior(TCyberBasic_AINode_SearchHelp.Create())
-						.AddBehavior(TCyberBasic_AINode_Goal.Create())
+						.AddBehavior(TCyberBasic_AINode_Goal.Create(9))
 						.AddBehavior(TCyberBasic_AINode_Fight.Create())
 						.AddBehavior(TCyberBasic_AINode_Gesture.Create())
 						.AddBehavior(SuperCyberSoldierFemale0_AINode_Rest.Create())
