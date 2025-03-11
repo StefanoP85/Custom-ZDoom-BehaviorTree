@@ -1052,6 +1052,7 @@ class TCustomCyberActor : TCustomNavMeshActor abstract
 	override void AfterOrderChange(NPCOrders OldOrder, bool Increment, Actor Commander, bool IgnoreAllegiance, bool FromACS)
 	{
 		super.AfterOrderChange(OldOrdr, Increment, Commander, IgnoreAllegiance, FromACS);
+		A_Face(Commander);
 		if ((CurrentOrder == ORDER_FOLLOW || CurrentOrder == ORDER_WANDER) && IsInState(self, "Idle"))
 			UpdateStateLabel('Walk');
 		if (CurrentOrder == ORDER_STAY)
